@@ -1,0 +1,4 @@
+click==8.5.1
+cryptography==50.0.2
+httpx==0.28.1
+tabulate==0.10.0
