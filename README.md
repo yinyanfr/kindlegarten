@@ -1,5 +1,9 @@
 # kindlegarten
 
+> **使用范围**
+>
+> 本项目仅用于备份本人在 Amazon 合法购买的 Kindle 电子书。
+
 从自己的 Amazon Kindle 书库下载电子书，以 EPUB 或 CBZ 保存到本地。下载时使用 Kindle for iPad 配置，保留亚马逊为该版本提供的彩色插图。
 
 - 自动选择输出格式。文字书导出 EPUB，可提取为整页图片的固定版式漫画和杂志导出 CBZ。
@@ -44,4 +48,4 @@ python3 kindle.py download --help
 - **某本书无法下载或转换**。先确认该书能从对应站点的 Kindle 书库打开。格式和加密兼容性取决于 Amazon 针对该书下发的资源。
 - **迁移到另一台电脑**。在新系统运行 `setup` 创建本机依赖。`.kindle-data/` 存放登录状态和项目依赖，`books/` 存放默认输出。这两个目录都由 Git 忽略。
 
-程序使用 [kindl](https://github.com/bGFiMTI2/kindl) 下载、[DeDRM Tools](https://github.com/Satsuoni/DeDRM_tools) 解密、[KFX Input](https://www.mobileread.com/forums/showthread.php?t=291290) 转档。请用于自己有权访问的电子书。项目采用 [MIT 许可证](LICENSE)。
+程序使用 [kindl](https://github.com/bGFiMTI2/kindl) 下载、[DeDRM Tools](https://github.com/Satsuoni/DeDRM_tools) 解密、[KFX Input](https://www.mobileread.com/forums/showthread.php?t=291290) 转档。项目采用 [MIT 许可证](LICENSE)。
