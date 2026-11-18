@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kindlegarten"
+dynamic = ["version"]
+description = "A command-line backup tool for purchased Amazon Kindle books"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+    "Environment :: Console",
+    "Programming Language :: Python :: 3",
+    "Topic :: Utilities",
+]
+
+[project.scripts]
+kindlegarten = "kindlegarten.cli:entrypoint"
+
+[project.urls]
+Repository = "https://github.com/yinyanfr/kindlegarten"
+Issues = "https://github.com/yinyanfr/kindlegarten/issues"
+
+[tool.setuptools]
+packages = ["kindlegarten"]
+
+[tool.setuptools.dynamic]
+version = {attr = "kindlegarten.__version__"}
+
+[tool.setuptools.package-data]
+kindlegarten = ["constraints.txt"]
