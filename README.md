@@ -1,36 +1,38 @@
 # kindlegarten
 
-> **使用范围**
+[简体中文](https://github.com/yinyanfr/kindlegarten/blob/main/README.zh-CN.md)
+
+> **Scope of use**
 >
-> 本项目仅用于备份本人在 Amazon 合法购买的 Kindle 电子书。
+> Use this project only to back up Kindle books you have legally purchased from Amazon.
 
-从自己的 Amazon Kindle 书库下载电子书，以 EPUB 或 CBZ 保存到本地。下载时使用 Kindle for iPad 配置，保留亚马逊为该版本提供的彩色插图。
+Download books from your Amazon Kindle library and save them locally as EPUB or CBZ. kindlegarten downloads the Kindle for iPad edition and preserves the color illustrations Amazon supplies for that edition.
 
-- 自动选择输出格式。文字书导出 EPUB，可提取为整页图片的固定版式漫画和杂志导出 CBZ。
-- 按书名保存，自动处理文件名中的禁用字符和过长书名。下载过程只显示一条整书进度条。
-- 支持 Amazon 日本站和美国站。登录一次后可复用本机登录状态。
+- Automatically exports text-based books as EPUB and fixed-layout comics and magazines as CBZ when their pages can be extracted as images.
+- Names output files after the book title, replaces characters disallowed in filenames, and shortens long titles. One progress bar tracks the entire download.
+- Supports Amazon Japan and Amazon US and saves your sign-in locally for future downloads.
 
-## 安装
+## Installation
 
-需要 Python 3.11 或更新版、[Calibre](https://calibre-ebook.com/download) 和用于登录 Amazon 的浏览器。命令面向 macOS、Windows 和 Linux，已在 macOS 实机验证。
+You need Python 3.11 or later, [Calibre](https://calibre-ebook.com/download), and a browser for Amazon sign-in. The CLI is designed for macOS, Windows, and Linux and has been tested on macOS.
 
 ```sh
 python3 -m pip install kindlegarten
 kindlegarten setup
 ```
 
-Windows 可用 `py -3 -m pip install kindlegarten`。若系统的 Python 由包管理器维护，可在虚拟环境中运行 `pip install kindlegarten`，或用 `pipx install kindlegarten` 安装命令。首次运行 `kindlegarten setup` 会安装导出所需的组件。
+On Windows, use `py -3 -m pip install kindlegarten`. If your Python installation is managed by your system package manager, install kindlegarten in a virtual environment or run `pipx install kindlegarten`. Run `kindlegarten setup` once to install the components used for export.
 
-## 登录与下载
+## Sign in and download
 
 ```sh
 kindlegarten login --region jp
 kindlegarten download B0EXAMPLE0
 ```
 
-登录命令会打开 Amazon 页面并注册一个 Kindle for iPad 客户端。完成登录后，复制浏览器地址栏里的完整跳转网址，粘贴回终端并按回车。终端会隐藏粘贴的内容。
+The login command opens Amazon in your browser and registers a Kindle for iPad client. After signing in, copy the full redirect URL from the address bar, paste it into the terminal, and press Enter. The terminal hides the pasted URL.
 
-把示例中的 `B0EXAMPLE0` 替换为书籍的十位 ASIN。也可直接传入商品链接，程序会根据域名选择日本站或美国站。单独输入 ASIN 时默认使用日本站，美区账户请在登录和下载时加上 `--region us`。
+Replace `B0EXAMPLE0` with the book's ten-character ASIN. You can also pass an Amazon product URL, which selects the region from its domain. A bare ASIN defaults to Amazon Japan. For an Amazon US account, pass `--region us` to both `login` and ASIN-based downloads.
 
 ```sh
 kindlegarten download "https://www.amazon.co.jp/dp/B0EXAMPLE0"
@@ -38,23 +40,23 @@ kindlegarten download B0EXAMPLE0 --output "My Book.epub"
 kindlegarten download --help
 ```
 
-默认输出到当前目录下的 `books/<书名>.epub` 或 `books/<书名>.cbz`，缺少可用书名时使用 ASIN。`--output` 可以指定文件名和格式，相对路径以当前目录为准。指定 CBZ 时，程序会检查页面能否安全地作为纯图片导出。已有同名文件会提示冲突。
+By default, books are saved as `books/<title>.epub` or `books/<title>.cbz` under the current directory. If the title is missing, the filename uses the ASIN. Use `--output` to specify a filename and format. Relative paths start from the current directory. CBZ export requires pages that can be safely extracted as images. The CLI reports a conflict if the output file already exists.
 
-## 本地数据
+## Local data
 
-通过 pip 安装的命令按用户保存登录状态和导出依赖。
+The pip-installed CLI stores sign-in state and export dependencies in a per-user directory.
 
-- macOS 使用 `~/Library/Application Support/kindlegarten/`。
-- Windows 使用 `%LOCALAPPDATA%\kindlegarten\`。
-- Linux 使用 `$XDG_DATA_HOME/kindlegarten/`，其默认值为 `~/.local/share/kindlegarten/`。
+- macOS uses `~/Library/Application Support/kindlegarten/`.
+- Windows uses `%LOCALAPPDATA%\kindlegarten\`.
+- Linux uses `$XDG_DATA_HOME/kindlegarten/`, which defaults to `~/.local/share/kindlegarten/`.
 
-可以用 `KINDLEGARTEN_DATA_DIR` 指定其他目录。如果之前用源码运行过，可将它设为原仓库中 `.kindle-data/` 的绝对路径，以复用现有登录状态和依赖。直接在源码仓库运行 `python3 kindle.py` 也可继续使用仓库内的 `.kindle-data/` 和 `books/`。
+Set `KINDLEGARTEN_DATA_DIR` to use a different directory. To reuse sign-in state and dependencies from a source checkout, set it to the absolute path to that checkout's `.kindle-data/` directory. Running `python3 kindle.py` directly from a checkout uses its own `.kindle-data/` and `books/` directories.
 
-## 排查问题
+## Troubleshooting
 
-- **找不到 Calibre**。将 `KINDLE_CALIBRE_BIN` 设置为 `calibre-debug` 和 `calibre-customize` 所在目录。Windows 使用相应的 `.exe` 文件。
-- **登录失效或切换账户**。运行 `kindlegarten logout --region jp` 清除日本站的本地登录状态，再重新登录。可在 Amazon 的「管理内容和设备」页面注销已注册的设备。
-- **某本书无法下载或转换**。先确认该书能从对应站点的 Kindle 书库打开。格式和加密兼容性取决于 Amazon 针对该书下发的资源。
-- **迁移到另一台电脑**。安装 Calibre 和 kindlegarten 后，运行 `kindlegarten setup` 创建本机依赖。
+- **Calibre cannot be found.** Set `KINDLE_CALIBRE_BIN` to the directory containing `calibre-debug` and `calibre-customize`. On Windows, these files have the `.exe` extension.
+- **Sign-in has expired or you want to switch accounts.** Run `kindlegarten logout --region jp` to clear the local sign-in state for Japan, then sign in again. You can deregister the device from Amazon's **Manage Your Content and Devices** page.
+- **A book fails to download or convert.** Check that you can open it in your Kindle library for the selected region. Format and encryption compatibility depend on the files Amazon delivers for the book.
+- **Setting up on another computer.** Install Calibre and kindlegarten, then run `kindlegarten setup` to install the dependencies on that computer.
 
-程序使用 [kindl](https://github.com/bGFiMTI2/kindl) 下载、[DeDRM Tools](https://github.com/Satsuoni/DeDRM_tools) 解密、[KFX Input](https://www.mobileread.com/forums/showthread.php?t=291290) 转档。项目采用 [MIT 许可证](https://github.com/yinyanfr/kindlegarten/blob/main/LICENSE)。
+kindlegarten uses [kindl](https://github.com/bGFiMTI2/kindl) for downloading, [DeDRM Tools](https://github.com/Satsuoni/DeDRM_tools) for decryption, and [KFX Input](https://www.mobileread.com/forums/showthread.php?t=291290) for conversion. The project is licensed under the [MIT License](https://github.com/yinyanfr/kindlegarten/blob/main/LICENSE).
