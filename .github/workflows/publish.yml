@@ -1,6 +1,8 @@
-name: Publish to PyPI
+name: Publish package and release
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -8,35 +10,81 @@ permissions:
 
 concurrency:
   group: publish-pypi
+  queue: max
 
 jobs:
   build:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+      create_tag: ${{ steps.plan.outputs.create_tag }}
+      upload_pypi: ${{ steps.plan.outputs.upload_pypi }}
+      release_github: ${{ steps.plan.outputs.release_github }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+      - id: plan
+        name: Check the version, changelog, and existing releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: PYTHONPATH=. python .github/scripts/prepare_release.py
       - name: Build and validate the distributions
+        if: steps.plan.outputs.upload_pypi == 'true'
         run: |
+          python -m unittest discover -s tests
           python -m pip install build twine
           python -m build
           python -m twine check --strict dist/*
       - name: Install and check the CLI
+        if: steps.plan.outputs.upload_pypi == 'true'
         run: |
           python -m venv "$RUNNER_TEMP/pypi-smoke"
           "$RUNNER_TEMP/pypi-smoke/bin/python" -m pip install --no-index dist/*.whl
           "$RUNNER_TEMP/pypi-smoke/bin/kindlegarten" --version
           "$RUNNER_TEMP/pypi-smoke/bin/kindlegarten" download --help
+          "$RUNNER_TEMP/pypi-smoke/bin/kindlegarten" w --help
+          "$RUNNER_TEMP/pypi-smoke/bin/kindlegarten" s --help
       - uses: actions/upload-artifact@v6
+        if: steps.plan.outputs.upload_pypi == 'true'
         with:
           name: python-distributions
           path: dist/
           if-no-files-found: error
+      - uses: actions/upload-artifact@v6
+        if: steps.plan.outputs.release_github == 'true'
+        with:
+          name: release-notes
+          path: release-notes.md
+          if-no-files-found: error
+
+  tag:
+    needs: build
+    if: needs.build.outputs.upload_pypi == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Bind the version tag to the built commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.tag }}
+          CREATE_TAG: ${{ needs.build.outputs.create_tag }}
+        run: |
+          if [[ "$CREATE_TAG" == "true" ]]; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f "ref=refs/tags/$TAG" -f "sha=$GITHUB_SHA" --silent ||
+              [[ "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha)" == "$GITHUB_SHA" ]]
+          fi
 
   publish:
-    if: github.ref == 'refs/heads/main'
-    needs: build
+    needs: [build, tag]
+    if: needs.build.outputs.upload_pypi == 'true'
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -49,3 +97,28 @@ jobs:
           name: python-distributions
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
+
+  release:
+    needs: [build, publish]
+    if: >-
+      !cancelled() &&
+      needs.build.result == 'success' &&
+      needs.build.outputs.release_github == 'true' &&
+      (needs.publish.result == 'success' || needs.build.outputs.upload_pypi == 'false')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: release-notes
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --verify-tag --title "$TAG" --notes-file release-notes.md ||
+            [[ "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == "false" ]]

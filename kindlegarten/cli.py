@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import unicodedata
+import warnings
 import webbrowser
 from contextlib import contextmanager
 from pathlib import Path
@@ -240,15 +241,35 @@ def publish_book(source, destination):
 
 
 def start_login(args):
+    if args.session_file is not None and (args.source, args.method) != ("comipo", "cookie"):
+        raise KindleError("--session-file 和 --source comipo --method cookie 一起使用。")
+    if args.source == "comipo":
+        from kindlegarten.comipo import import_session, login
+
+        if args.method == "callback":
+            raise KindleError("Comipo Play 的登录状态保存在 Cookie 中。请使用 --method cookie、browser 或 credentials。")
+        if args.method == "cookie":
+            import_session(DATA, COMMAND, args.session_file)
+        else:
+            login(DATA, COMMAND, method=args.method or "browser")
+        return
+    if args.method in {"credentials", "cookie"}:
+        raise KindleError("Amazon 请使用 --method browser 或 --method callback。")
     require_setup()
     state = account_path(args.region)
     if state.exists():
         print(f"{args.region} 已有登录状态。更换账户前请先运行 {COMMAND} logout --region {args.region}。")
         return
-    run_worker("_login", args.region, state)
+    run_worker("_login", args.region, state, args.method or "default", sys.executable)
 
 
 def logout(args):
+    if args.source == "comipo":
+        from kindlegarten.comipo import session_path
+
+        session_path(DATA).unlink(missing_ok=True)
+        print("已清除 Comipo 的本地登录状态。")
+        return
     state = account_path(args.region)
     state.unlink(missing_ok=True)
     state.with_suffix(".json.tmp").unlink(missing_ok=True)
@@ -261,7 +282,23 @@ def run_worker(command, *args):
         raise SystemExit(result.returncode)
 
 
+def download_comipo(args):
+    from kindlegarten.comipo import checked_target, download
+
+    target = checked_target(args.kind, args.identifier)
+    download(target, args.output, DATA, BOOKS, COMMAND)
+
+
 def download_book(args):
+    from kindlegarten.comipo import download, parse_target
+
+    target = parse_target(args.book, args.source)
+    if target:
+        if args.region:
+            raise KindleError("--region 只适用于 Amazon。")
+        download(target, args.output, DATA, BOOKS, COMMAND)
+        return
+
     asin, site_region = book_target(args.book)
     if site_region and args.region and site_region != args.region:
         raise KindleError("商品链接站点与 --region 不一致。")
@@ -316,12 +353,20 @@ def require_new_output(path):
         raise KindleError(f"输出文件已存在：{path}。请用 --output 指定新文件。")
 
 
-def read_login_url():
-    prompt = "粘贴登录后的完整网址并按回车（输入隐藏）："
-    if os.name == "nt":
-        return getpass.getpass(prompt).strip()
+def hidden_input(prompt):
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", getpass.GetPassWarning)
+        try:
+            return getpass.getpass(prompt)
+        except getpass.GetPassWarning:
+            raise KindleError("无法关闭终端回显。请通过交互式终端登录。") from None
 
-    # macOS limits a canonical terminal read to 1024 bytes, shorter than some callbacks.
+
+def read_hidden_line(prompt):
+    if os.name == "nt":
+        return hidden_input(prompt).strip()
+
+    # macOS canonical mode may truncate long redirects and cookie headers.
     import termios
 
     fd = sys.stdin.fileno()
@@ -332,41 +377,53 @@ def read_login_url():
     settings[6][termios.VTIME] = 0
     termios.tcsetattr(fd, termios.TCSADRAIN, settings)
     try:
-        return getpass.getpass(prompt).strip()
+        return hidden_input(prompt).strip()
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, original)
 
 
-def login(region, state):
+def is_amazon_callback(url, site):
+    try:
+        parsed = urlsplit(url)
+        return (parsed.scheme == "https"
+                and parsed.hostname in {site, f"www.{site}"}
+                and bool(parse_qs(parsed.query).get("openid.oa2.authorization_code")))
+    except ValueError:
+        return False
+
+
+def login(region, state, method="default", cli_python=None):
     from kindl.auth import Account, AccountStore, new_device_identity, pkce_pair
     from kindl.client import AmazonDeviceClient
     from kindl.regions import get_region
 
-    if not sys.stdin.isatty():
+    if method != "browser" and not sys.stdin.isatty():
         raise KindleError("请在交互式终端中运行登录命令。")
     site = get_region(region).site
     serial, pid = new_device_identity()
     verifier, challenge = pkce_pair()
     language = "ja_JP" if region == "jp" else "en_US"
     url = AmazonDeviceClient.login_url(serial, challenge, language=language, region=region)
-    print(f"正在打开 {site} 登录页。请使用有该书访问权限的账户。", flush=True)
-    if not webbrowser.open(url):
-        print(f"请在浏览器手动打开此登录地址：\n{url}")
-    print("登录完成后，复制浏览器地址栏里的完整跳转网址。", flush=True)
-    while True:
-        callback = read_login_url()
-        try:
-            parsed = urlsplit(callback)
-        except ValueError:
+
+    if method == "browser":
+        result = subprocess.run(
+            [cli_python, "-m", "kindlegarten.cli", "_login_browser", site],
+            cwd=SCRIPT.parent.parent, input=url, stdout=subprocess.PIPE, text=True,
+        )
+        if result.returncode:
+            raise SystemExit(result.returncode)
+        callback = result.stdout.strip()
+        if not is_amazon_callback(callback, site):
+            raise KindleError("未收到有效的 Amazon 登录跳转。请重试或使用 --method callback。")
+    else:
+        if method == "callback" or not webbrowser.open(url):
+            print(f"请在浏览器打开此登录地址：\n{url}", flush=True)
+        print("登录完成后，复制浏览器地址栏里的完整跳转网址。", flush=True)
+        prompt = "粘贴登录后的完整网址并按回车（输入隐藏）："
+        callback = read_hidden_line(prompt)
+        while not is_amazon_callback(callback, site):
             print(f"请重新复制 {site} 登录后地址栏里的完整网址。")
-            continue
-        if (
-            parsed.scheme == "https"
-            and parsed.hostname in {site, f"www.{site}"}
-            and parse_qs(parsed.query).get("openid.oa2.authorization_code")
-        ):
-            break
-        print(f"请重新复制 {site} 登录后地址栏里的完整网址。")
+            callback = read_hidden_line(prompt)
 
     with AmazonDeviceClient(region=region) as client:
         credentials = client.register(callback, verifier, serial, pid)
@@ -633,8 +690,12 @@ def worker(command, args):
         os.environ["KINDL_PROFILE"] = "ios-ipad"
     try:
         if command == "_login":
-            region, state = args
-            login(region, Path(state))
+            region, state, *options = args
+            login(region, Path(state), *options)
+        elif command == "_login_browser":
+            from kindlegarten.browser import open_amazon_login
+
+            print(open_amazon_login(sys.stdin.read(), args[0], COMMAND))
         elif command == "_download":
             state, asin, destination = args
             download(Path(state), asin, Path(destination))
@@ -654,7 +715,7 @@ def worker(command, args):
 
 def main():
     os.umask(0o077)
-    if len(sys.argv) > 1 and sys.argv[1] in {"_login", "_download", "_decrypt", "_convert"}:
+    if len(sys.argv) > 1 and sys.argv[1] in {"_login", "_login_browser", "_download", "_decrypt", "_convert"}:
         worker(sys.argv[1], sys.argv[2:])
         return
     if sys.version_info < (3, 11):
@@ -662,22 +723,43 @@ def main():
 
     from kindlegarten import __version__
 
-    parser = argparse.ArgumentParser(prog=COMMAND, description="下载 Kindle iPad 版并导出彩色 EPUB 或 CBZ。")
+    parser = argparse.ArgumentParser(prog=COMMAND, description="下载 Kindle 和 Comipo 书库中的作品，导出 EPUB 或 CBZ。")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     commands = parser.add_subparsers(title="命令")
     commands.add_parser("setup", help="安装独立依赖").set_defaults(action=setup)
-    for name, action, description in (("login", start_login, "登录 Amazon"),
+    for name, action, description in (("login", start_login, "登录 Amazon 或 Comipo"),
                                       ("logout", logout, "清除本地登录状态")):
         subparser = commands.add_parser(name, help=description)
+        subparser.add_argument("--source", choices=("amazon", "comipo"), default="amazon", help="服务，默认 amazon")
         subparser.add_argument("--region", choices=("jp", "us"), default="jp", help="账户站点，默认 jp")
+        if name == "login":
+            subparser.add_argument(
+                "--method", choices=("browser", "callback", "credentials", "cookie"),
+                help="browser 打开浏览器，callback 粘贴 Amazon 跳转网址，"
+                     "credentials 输入 Comipo 凭据，cookie 导入 Comipo 会话",
+            )
+            subparser.add_argument(
+                "--session-file", type=Path, metavar="PATH", help="使用 Comipo cookie 模式导入会话 JSON 文件",
+            )
         subparser.set_defaults(action=action)
 
-    get = commands.add_parser("download", help="下载并转换一本书")
-    get.add_argument("book", metavar="ASIN_OR_URL", help="10 位 ASIN 或 Amazon 商品链接")
+    get = commands.add_parser("download", aliases=["d"], help="下载一本书或一个系列")
+    get.add_argument("book", metavar="ID_OR_URL", help="Amazon ASIN、Comipo work:ID、series:ID 或相应链接")
+    get.add_argument("--source", choices=("amazon", "comipo"), help="指定服务，省略时从 ID 或链接识别")
     get.add_argument("--region", choices=("jp", "us"), help="账户站点，纯 ASIN 默认 jp")
-    get.add_argument("-o", "--output", type=Path, metavar="FILE",
-                     help="指定 .epub 或 .cbz，省略时按内容选择格式并以书名存入 books/")
+    get.add_argument("-o", "--output", type=Path, metavar="PATH",
+                     help="单本指定 .epub 或 .cbz，Comipo 系列指定父目录，默认 books/")
     get.set_defaults(action=download_book)
+
+    for kind, alias, description, output_help in (
+        ("work", "w", "下载一本 Comipo 漫画", "指定 CBZ 文件，默认保存到 books/"),
+        ("series", "s", "下载 Comipo 系列的已购漫画", "指定系列文件夹的上级目录，默认 books/"),
+    ):
+        subparser = commands.add_parser(kind, aliases=[alias], help=description)
+        subparser.add_argument("identifier", metavar="ID", help=f"Comipo {kind} ID")
+        subparser.add_argument("-o", "--output", type=Path, metavar="PATH", help=output_help)
+        subparser.set_defaults(kind=kind, action=download_comipo)
+
     args = parser.parse_args()
     if not hasattr(args, "action"):
         parser.print_help()
@@ -718,4 +800,5 @@ def entrypoint(checkout=None):
 
 
 if __name__ == "__main__":
+    sys.modules.setdefault("kindlegarten.cli", sys.modules[__name__])
     sys.exit(entrypoint())

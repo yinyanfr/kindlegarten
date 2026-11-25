@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "kindlegarten"
 dynamic = ["version"]
-description = "A command-line backup tool for purchased Amazon Kindle books"
+description = "A command-line backup tool for purchased Amazon Kindle books and Comipo comics"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -15,6 +15,10 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Utilities",
 ]
+
+[project.optional-dependencies]
+browser = ["playwright>=1.51"]
+comipo = ["playwright>=1.51", "cryptography>=42"]
 
 [project.scripts]
 kindlegarten = "kindlegarten.cli:entrypoint"
