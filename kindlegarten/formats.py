@@ -2,7 +2,6 @@
 
 import json
 import shutil
-import subprocess
 import sys
 from hashlib import sha256
 from html import escape
@@ -13,6 +12,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from kindlegarten.cli import KindleError, book_filename, check_epub, publish_book
 from kindlegarten.i18n import tr
 from kindlegarten.network import worker_environment
+from kindlegarten.progress import check_cancelled, run_conversion
 
 FORMATS = ("auto", "epub", "pdf", "cbz", "zip")
 MEDIA = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif",
@@ -85,6 +85,19 @@ def save_export(source, destination, data, identity, requested):
     return destination
 
 
+def publish_export(source, destination, directory, title, identifier, data, identity, requested):
+    if destination is not None:
+        return save_export(source, destination, data, identity, requested)
+    while True:
+        target = unique_destination(directory, title, identifier, source.suffix)
+        try:
+            return save_export(source, target, data, identity, requested)
+        except FileExistsError:
+            # A concurrent task may have just published a different title at this path.
+            if not (target.exists() or target.is_symlink()):
+                raise
+
+
 def image_entries(archive):
     names = [item.filename for item in archive.infolist()
              if not item.is_dir() and Path(item.filename).suffix.lower() in MEDIA]
@@ -103,6 +116,7 @@ def images_as_epub(source, target, title, identifier, direction):
 <rootfiles><rootfile full-path="book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>""")
         manifest, spine, navigation = [], [], []
         for index, name in enumerate(image_entries(incoming), 1):
+            check_cancelled()
             import io
             payload = incoming.read(name)
             extension = Path(name).suffix.lower()
@@ -142,6 +156,7 @@ def images_as_pdf(source, target):
     with ZipFile(source) as comic:
         paths = []
         for index, name in enumerate(image_entries(comic)):
+            check_cancelled()
             extension = Path(name).suffix.lower()
             path = target.parent / f"pdf-page-{index}{extension}"
             with comic.open(name) as image, path.open("wb") as output:
@@ -168,6 +183,7 @@ def check_pdf(path):
 def convert(source, requested, title, identifier, *, direction="rtl"):
     from kindlegarten.cli import calibre_executable
 
+    check_cancelled()
     native = source.suffix.removeprefix(".")
     target = source.with_name(f"export.{requested}")
     if requested in {"auto", native}:
@@ -192,8 +208,7 @@ def convert(source, requested, title, identifier, *, direction="rtl"):
             check_pdf(target)
             return target
     if native == "epub" and requested == "pdf":
-        result = subprocess.run([calibre_executable("ebook-convert"), source, target],
-                                capture_output=True, env=worker_environment())
+        result = run_conversion([calibre_executable("ebook-convert"), source, target], env=worker_environment())
         if result.returncode or not target.is_file():
             raise KindleError(tr("Calibre could not convert this ebook to PDF."))
         check_pdf(target)

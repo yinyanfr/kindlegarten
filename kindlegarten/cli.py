@@ -29,7 +29,10 @@ if socks_site := os.environ.get("KINDLEGARTEN_SOCKS_SITE"):
 from kindlegarten.i18n import tr
 from kindlegarten.marketplaces import MARKETPLACES, REGIONS_BY_SITE
 from kindlegarten.network import amazon_client, http_client, worker_environment
-from kindlegarten.progress import PROGRESS, report, report_book
+from kindlegarten.progress import (
+    PROGRESS, DownloadCancelled, check_cancelled, download_directory, download_session,
+    report, report_book, run_conversion,
+)
 COMMAND = "kindlegarten"
 VENV_PYTHON = Path("venv") / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 KINDL_SOURCE = (
@@ -149,8 +152,7 @@ def configure_calibre(plugin_dir, config_dir):
     env["CALIBRE_CONFIG_DIRECTORY"] = str(config_dir)
     config_dir.mkdir()
     for plugin in PLUGINS:
-        result = subprocess.run([customize, "--add-plugin", plugin_dir / plugin],
-                                env=env, capture_output=True)
+        result = run_conversion([customize, "--add-plugin", plugin_dir / plugin], env=env)
         if result.returncode:
             raise KindleError(tr('Calibre could not load the {plugin} plugin.', plugin=plugin))
     return env
@@ -254,10 +256,12 @@ def book_filename(title, asin, extension):
 
 
 def publish_book(source, destination):
+    check_cancelled()
     destination.parent.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(prefix=".kindle-", dir=destination.parent) as temporary:
         staged = Path(temporary) / source.name
         shutil.copyfile(source, staged)
+        check_cancelled()
         if os.name == "nt":
             staged.rename(destination)
         else:
@@ -351,15 +355,41 @@ def run_worker(command, *args, capture=False, input_text=None):
         env["KINDLEGARTEN_SOCKS_SITE"] = str(Path(socks.origin).parent.parent)
     invocation = [RUNTIME / VENV_PYTHON, SCRIPT, command, *args]
     if command == "_download" and PROGRESS.get():
+        from queue import Empty, Queue
+        from threading import Thread
+
         env["KINDLEGARTEN_PROGRESS"] = "1"
         with subprocess.Popen(invocation, env=env, stdout=subprocess.PIPE, text=True, encoding="utf-8") as process:
             assert process.stdout is not None
-            for line in process.stdout:
+            lines = Queue()
+
+            def read_lines():
                 try:
-                    event = json.loads(line)
-                    report(event["percent"], event["speed"])
-                except (ValueError, KeyError, TypeError):
-                    pass
+                    for line in process.stdout:
+                        lines.put(line)
+                finally:
+                    lines.put(None)
+
+            reader = Thread(target=read_lines, daemon=True)
+            reader.start()
+            try:
+                while True:
+                    check_cancelled()
+                    try:
+                        line = lines.get(timeout=0.2)
+                    except Empty:
+                        continue
+                    if line is None:
+                        break
+                    try:
+                        event = json.loads(line)
+                        report(event["percent"], event["speed"])
+                    except (ValueError, KeyError, TypeError):
+                        pass
+            except DownloadCancelled:
+                process.kill()
+                reader.join()
+                raise
             if process.wait():
                 raise KindleError(tr("The Kindle download worker failed."))
         return None
@@ -473,7 +503,7 @@ def download_book(args):
 
 
 def download_amazon(asin, region, output, requested="auto", *, directory=None):
-    from kindlegarten.formats import convert, save_export, selected_format, unique_destination
+    from kindlegarten.formats import convert, publish_export, selected_format
 
     destination = output.expanduser().absolute() if output else None
     requested = selected_format(requested, destination)
@@ -481,13 +511,13 @@ def download_amazon(asin, region, output, requested="auto", *, directory=None):
     if destination:
         require_new_output(destination)
     require_setup()
-    account = account_path(region)
+    account = download_session(account_path(region))
     if not account.is_file():
         raise KindleError(tr('Run {COMMAND} login --region {region} first.', COMMAND=COMMAND, region=region))
     debug = calibre_executable("calibre-debug")
     script = (Path(sys._MEIPASS) / "kindlegarten" / "cli.py") if getattr(sys, "frozen", False) else SCRIPT
 
-    with TemporaryDirectory(prefix=".job-", dir=DATA) as temporary:
+    with TemporaryDirectory(prefix=".job-", dir=download_directory(DATA)) as temporary:
         staging = Path(temporary)
         env = configure_calibre(RUNTIME, staging / "calibre")
         encrypted = staging / "download" / f"{asin}.kfx-zip"
@@ -495,12 +525,11 @@ def download_amazon(asin, region, output, requested="auto", *, directory=None):
         print(tr('Requesting the {region} Kindle for iPad edition of {asin}…', region=region, asin=asin), flush=True)
         run_worker("_download", account, asin, encrypted)
         print(tr('Preparing the Kindle file for conversion…'), flush=True)
-        result = subprocess.run([debug, "-e", script, "--", "_decrypt", account, encrypted, decrypted],
-                                env=env, capture_output=True)
+        result = run_conversion([debug, "-e", script, "--", "_decrypt", account, encrypted, decrypted], env=env)
         if result.returncode or not decrypted.is_file():
             raise KindleError(tr('DeDRM could not process this book. Check access and format compatibility.'))
-        conversion = subprocess.run([debug, "-e", script, "--", "_convert", decrypted, staging, requested_format],
-                                    env=env, capture_output=True)
+        conversion = run_conversion([debug, "-e", script, "--", "_convert", decrypted, staging, requested_format],
+                                    env=env)
         messages = conversion.stdout + conversion.stderr
         if conversion.returncode:
             if b"CBZ_REQUIRES_IMAGE_PAGES" in messages:
@@ -512,10 +541,7 @@ def download_amazon(asin, region, output, requested="auto", *, directory=None):
         title = json.loads((staging / "title.json").read_text(encoding="utf-8"))
         identity = f"amazon:{region}:{asin}"
         artifact = convert(converted[0], requested, title or asin, identity)
-        if destination is None:
-            destination = unique_destination(directory or BOOKS, title, asin, artifact.suffix)
-        require_new_output(destination)
-        save_export(artifact, destination, DATA, identity, requested)
+        destination = publish_export(artifact, destination, directory or BOOKS, title, asin, DATA, identity, requested)
         if b"Missing font family names" in messages:
             print(tr('Some publisher fonts could not be mapped. EPUB fallback fonts were retained.'), file=sys.stderr)
     print(tr('Saved {destination}', destination=destination))
@@ -604,6 +630,7 @@ def download(state, asin, destination):
     import httpx
     from kindl.auth import AccountStore
     from kindl.bundle import package_kfx_zip
+    check_cancelled()
     store = AccountStore.load(state)
     account = store.get("ipad")
     if account is None:
@@ -641,6 +668,7 @@ class DownloadProgress:
         self.current_size = self.current_received = 0
 
     def start(self, sizes):
+        check_cancelled()
         self.files = len(sizes)
         self.total = (sum(sizes) or None) if all(type(size) is int and size > 0 for size in sizes) else None
         self.started = self.updated = monotonic()
@@ -655,6 +683,7 @@ class DownloadProgress:
         self.current_size = self.current_received = 0
 
     def advance(self, size):
+        check_cancelled()
         self.received += size
         self.current_received += size
         now = monotonic()
@@ -696,6 +725,7 @@ def track_download(client):
     stream = client.http.stream
 
     def prepare_progress(asin):
+        check_cancelled()
         payload, correlation = manifest(asin)
         sizes = [resource.get("size") for resource in payload.get("resources", [])
                  if (resource.get("endpoint") or {}).get("url") and resource.get("type") != "KINDLE_USER_ANOT"]
@@ -716,6 +746,7 @@ def track_download(client):
 
     @contextmanager
     def measure(*args, **kwargs):
+        check_cancelled()
         with stream(*args, **kwargs) as response:
             if not response.is_success:
                 yield response
@@ -850,7 +881,9 @@ def check_epub(path):
 
 
 def worker(command, args):
-    if command in {"_login", "_download", "_library", "_prepare_login", "_register_login", "_validate_login", "_account"}:
+    if not getattr(sys, "frozen", False) and command in {
+        "_login", "_download", "_library", "_prepare_login", "_register_login", "_validate_login", "_account",
+    }:
         for key in list(os.environ):
             if key.startswith("KINDL_"):
                 del os.environ[key]
@@ -893,7 +926,7 @@ def worker(command, args):
         else:
             source, output_dir, requested_format = args
             convert_book(Path(source), Path(output_dir), requested_format)
-    except (KindleError, KeyboardInterrupt, EOFError):
+    except (KindleError, DownloadCancelled, KeyboardInterrupt, EOFError):
         raise
     except Exception as error:
         response = getattr(error, "response", None)

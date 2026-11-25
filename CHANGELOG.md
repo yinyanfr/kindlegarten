@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Fix desktop multi-selection so every selected book or series enters the download queue as its own task.
+- Add a right-hand download queue with per-task progress, speed, cancellation, retry, and a shortcut to open saved files' folder.
+- Allow 1–10 concurrent desktop downloads, with a default of 3. Series retries skip volumes already saved in the requested format.
+
 ## 0.3.0
 
 - Add a native desktop bookshelf, provider sign-in, proxy settings, downloads, tutorials and GitHub release checks.

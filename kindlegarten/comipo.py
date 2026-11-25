@@ -18,7 +18,7 @@ from kindlegarten.browser import browser_context, playwright_session
 from kindlegarten.i18n import tr
 from kindlegarten.library import PLAY_TIMEZONE, library_cache_path, purchase_timestamp
 from kindlegarten.network import browser_proxy
-from kindlegarten.progress import report_book
+from kindlegarten.progress import DOWNLOAD, check_cancelled, download_directory, download_session, report_book
 from kindlegarten.cli import (
     DownloadProgress, KindleError, SignInRequired, book_filename, hidden_input, publish_book, read_hidden_line,
     require_new_output,
@@ -322,6 +322,7 @@ class ComipoClient:
         self.site = site
 
     def fetch(self, url, *, payload=None, as_json=True):
+        check_cancelled()
         parts = urlsplit(url)
         if parts.scheme != "https" or f"https://{parts.netloc}" not in {self.site.play, self.site.cdn}:
             raise KindleError(tr('The reader returned an unknown resource host.'))
@@ -337,6 +338,7 @@ class ComipoClient:
         options = {} if payload is None else {"method": "POST", "data": payload}
         response = self.request.fetch(url, headers=headers, max_redirects=0, timeout=60000, **options)
         try:
+            check_cancelled()
             if not response.ok:
                 if response.status in {401, 403}:
                     raise PlayHttpError(response.status, tr("{site} refused access (HTTP {status}). Check your session and purchases.",
@@ -443,7 +445,7 @@ def saved_account(data, command, site):
 
 @contextmanager
 def session(data, command, site=COMIPO):
-    state = session_path(data, site)
+    state = download_session(session_path(data, site))
     if not state.is_file():
         raise SignInRequired(tr("Sign in to {site} before accessing the library.", site=site.name))
     try:
@@ -619,7 +621,7 @@ def write_comic(client, work_id, destination, data, *, announce=True):
 
 
 def download(target, output, data, books, command, requested="auto", *, site=COMIPO, resume=False):
-    from kindlegarten.formats import already_saved, convert, save_export, selected_format, unique_destination
+    from kindlegarten.formats import already_saved, convert, publish_export, selected_format, unique_destination
     from kindlegarten.library import by_purchase
 
     kind, identifier = target
@@ -669,11 +671,13 @@ def download(target, output, data, books, command, requested="auto", *, site=COM
                     if (kind == "series" or resume) and completed_work(path, work_id):
                         print(tr("Already saved: {path}", path=path), flush=True)
                         continue
-                    if destination is None and path.exists():
-                        path = unique_destination(directory, title, work_id, ".cbz")
-                    write_comic(client, work_id, path, data)
-                    continue
-                with TemporaryDirectory(prefix=".job-", dir=data) as folder:
+                    if DOWNLOAD.get() is None:
+                        if destination is None and path.exists():
+                            path = unique_destination(directory, title, work_id, ".cbz")
+                        write_comic(client, work_id, path, data)
+                        continue
+                workspace = download_directory(data)
+                with TemporaryDirectory(prefix=".job-", dir=workspace) as folder:
                     staging = Path(folder)
                     if site is DLSITE:
                         from kindlegarten.dlsite import download_book
@@ -681,10 +685,9 @@ def download(target, output, data, books, command, requested="auto", *, site=COM
                         source = download_book(client, work_id, staging)
                     else:
                         source = staging / "book.cbz"
-                        write_comic(client, work_id, source, data, announce=False)
+                        write_comic(client, work_id, source, workspace, announce=False)
                     artifact = convert(source, requested, title, identity)
-                    path = destination or unique_destination(directory, title, work_id, artifact.suffix)
-                    save_export(artifact, path, data, identity, requested)
+                    path = publish_export(artifact, destination, directory, title, work_id, data, identity, requested)
                     print(tr('Saved {destination}', destination=path), flush=True)
             except (KindleError, OSError, KeyError, TypeError, ValueError, BadZipFile) as error:
                 if kind == "work":

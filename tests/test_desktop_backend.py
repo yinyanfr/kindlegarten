@@ -2,8 +2,10 @@ import io
 import os
 import unittest
 from contextlib import redirect_stdout
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Barrier, Event, Lock
 from unittest.mock import patch
 from zipfile import ZipFile
 
@@ -11,10 +13,12 @@ from PIL import Image
 from pikepdf import Pdf
 
 from kindlegarten import cli, comipo, updates
-from kindlegarten.formats import already_saved, convert, save_export, selected_format
+from kindlegarten.desktop_download import DownloadRequest, run_download
+from kindlegarten.formats import already_saved, convert, publish_export, save_export, selected_format
 from kindlegarten.i18n import LANGUAGE
 from kindlegarten.library import Book, Library, Series, amazon_library, by_purchase, cache_library, cached_library, purchase_timestamp
 from kindlegarten.network import browser_proxy, using_proxy
+from kindlegarten.progress import DownloadCancelled, download_session
 
 
 class AmazonLibraryTest(unittest.TestCase):
@@ -73,6 +77,57 @@ class LibraryCacheTest(unittest.TestCase):
                 cli.logout_source("amazon", "de")
             self.assertIsNone(cached_library(cli.DATA, "amazon", "de"))
             self.assertEqual(cached_library(cli.DATA, "amazon", "uk"), snapshot)
+
+
+class DownloadQueueBackendTest(unittest.TestCase):
+    def test_parallel_tasks_copy_account_and_publish_distinct_paths(self):
+        with TemporaryDirectory() as temporary, patch.object(cli, "DATA", Path(temporary), create=True):
+            source = cli.account_path("jp")
+            source.write_text("original")
+            folder = cli.DATA / "books"
+            ready = Barrier(2)
+            gate = Lock()
+            entries = (Book("B01", "Same title"), Book("B02", "Same title"))
+
+            def transfer(args):
+                isolated = download_session(source)
+                self.assertNotEqual(isolated, source)
+                self.assertEqual(isolated.read_text(), "original")
+                isolated.write_text(args.identifier)
+                ready.wait(timeout=10)
+                artifact = isolated.with_name("book.epub")
+                artifact.write_text(args.identifier)
+                publish_export(artifact, None, args.books, "Same title", args.identifier, cli.DATA,
+                               args.identifier, "epub")
+
+            with (
+                patch.object(cli, "setup_ready", return_value=True),
+                patch.object(cli, "download_selection", side_effect=transfer),
+                ThreadPoolExecutor(max_workers=2) as pool,
+            ):
+                jobs = [pool.submit(run_download, DownloadRequest("amazon", "jp", book, folder, "epub"),
+                                    Event(), gate) for book in entries]
+                self.assertEqual([job.result(timeout=12) for job in jobs], [folder, folder])
+            self.assertEqual(source.read_text(), "original")
+            self.assertEqual({file.read_text() for file in folder.glob("*.epub")}, {"B01", "B02"})
+            self.assertEqual(list((cli.DATA / "downloads").iterdir()), [])
+
+    def test_cancelled_task_removes_staging_and_skips_publication(self):
+        with TemporaryDirectory() as temporary, patch.object(cli, "DATA", Path(temporary), create=True):
+            comipo.session_path(cli.DATA).write_text("{}")
+            request = DownloadRequest("comipo", "jp", Book("BJ123456", "Book"), cli.DATA / "books", "epub")
+            cancelled = Event()
+
+            def transfer(args):
+                source = download_session(comipo.session_path(cli.DATA)).with_name("staged.epub")
+                source.write_bytes(b"partial")
+                cancelled.set()
+                cli.publish_book(source, args.books / "Book.epub")
+
+            with patch.object(cli, "download_selection", side_effect=transfer), self.assertRaises(DownloadCancelled):
+                run_download(request, cancelled, Lock())
+            self.assertFalse(request.folder.exists())
+            self.assertEqual(list((cli.DATA / "downloads").iterdir()), [])
 
 
 class ExportTest(unittest.TestCase):

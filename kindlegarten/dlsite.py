@@ -8,6 +8,7 @@ from zipfile import ZipFile
 from kindlegarten.cli import KindleError
 from kindlegarten.i18n import tr
 from kindlegarten.network import proxy_address
+from kindlegarten.progress import check_cancelled, report
 
 class ReaderConnection:
     _DL_TIMEOUT = 60
@@ -17,15 +18,19 @@ class ReaderConnection:
         self.http = http
 
     async def get(self, url, *, stream=False, raise_for_status=True, **kwargs):
+        check_cancelled()
         self.validate(url)
         response = await self.http.get(url, **kwargs)
+        check_cancelled()
         if raise_for_status:
             response.raise_for_status()
         return response if not stream else ReaderStream(response)
 
     async def post(self, url, **kwargs):
+        check_cancelled()
         self.validate(url)
         response = await self.http.post(url, **kwargs)
+        check_cancelled()
         response.raise_for_status()
         return response
 
@@ -101,8 +106,10 @@ async def reader_export(client, directory, work_id, tree, key):
         async with SafeFixed(reader, catalog, playfile, workno=work_id) as book:
             with ZipFile(destination, "w") as archive:
                 for number in range(book.page_count):
+                    check_cancelled()
                     for index, path in enumerate(await book.download_page(number, directory, descramble=True)):
                         archive.write(path, f"{number + 1:05d}-{index + 1:02d}{path.suffix.lower()}")
+                    report(round(100 * (number + 1) / book.page_count), "")
         return destination
 
 

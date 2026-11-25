@@ -123,9 +123,17 @@
     "ja": "カナダ",
     "zh": "加拿大"
   },
+  "Cancel download": {
+    "ja": "ダウンロードをキャンセル",
+    "zh": "取消下载"
+  },
   "Cancelled.": {
     "ja": "キャンセルしました。",
     "zh": "已取消。"
+  },
+  "Cancelling…": {
+    "ja": "キャンセル中…",
+    "zh": "正在取消…"
   },
   "Check for updates": {
     "ja": "更新を確認",
@@ -183,6 +191,14 @@
     "ja": "ブラウザーでログインしてください。",
     "zh": "在浏览器中完成登录。"
   },
+  "Completed": {
+    "ja": "完了",
+    "zh": "已完成"
+  },
+  "Concurrent downloads": {
+    "ja": "同時ダウンロード数",
+    "zh": "同时下载数"
+  },
   "Copy the Cookie request header from Play. A sign-in URL cannot be imported.": {
     "ja": "Play の Cookie リクエストヘッダーをコピーしてください。ログイン URL は読み込めません。",
     "zh": "请复制 Comipo Play 请求的 Cookie 标头值。登录后的地址栏链接无法导入。"
@@ -239,6 +255,10 @@
     "ja": "本を 1 冊ダウンロードします。",
     "zh": "下载一本 Comipo 漫画"
   },
+  "Download failed": {
+    "ja": "ダウンロードに失敗しました",
+    "zh": "下载失败"
+  },
   "Download selected": {
     "ja": "選択項目をダウンロード",
     "zh": "下载所选"
@@ -247,6 +267,10 @@
     "ja": "シリーズの購入済みの巻をダウンロードします。",
     "zh": "下载 Comipo 系列的已购漫画"
   },
+  "Downloading": {
+    "ja": "ダウンロード中",
+    "zh": "下载中"
+  },
   "Downloading [{bar}] {approximate}{percent:3d}%  {downloaded}  {speed}/s{status}": {
     "ja": "ダウンロード [{bar}] {approximate}{percent:3d}%  {downloaded}  {speed}/s{status}",
     "zh": "下载 [{bar}] {approximate}{percent:3d}%  {downloaded}  {speed}/s{status}"
@@ -254,6 +278,10 @@
   "Downloading {title}…": {
     "ja": "{title} をダウンロードしています…",
     "zh": "正在下载《{title}》…"
+  },
+  "Downloads": {
+    "ja": "ダウンロード",
+    "zh": "下载"
   },
   "Downloads saved.": {
     "ja": "ダウンロードを保存しました。",
@@ -411,6 +439,10 @@
     "ja": "ネットワーク",
     "zh": "网络"
   },
+  "No downloads yet.": {
+    "ja": "ダウンロードはまだありません。",
+    "zh": "暂无下载任务。"
+  },
   "No free output filename for {title}.": {
     "ja": "{title} に使用できる出力ファイル名がありません。",
     "zh": "无法为《{title}》找到可用输出文件名。"
@@ -442,6 +474,10 @@
   "Open browser": {
     "ja": "ブラウザーを開く",
     "zh": "打开浏览器"
+  },
+  "Open folder": {
+    "ja": "フォルダーを開く",
+    "zh": "打开文件夹"
   },
   "Open release": {
     "ja": "リリースを開く",
@@ -539,6 +575,10 @@
     "ja": "Python 依存関係をインストールできません。Python と接続を確認してください。",
     "zh": "安装 Python 依赖失败，请检查 Python 安装及网络。"
   },
+  "Queued": {
+    "ja": "待機中",
+    "zh": "排队中"
+  },
   "Refresh": {
     "ja": "更新",
     "zh": "刷新"
@@ -550,6 +590,10 @@
   "Requesting the {region} Kindle for iPad edition of {asin}…": {
     "ja": "{region} の Kindle for iPad 版 {asin} を取得しています…",
     "zh": "正在请求 {region} 站 iPad 版 {asin}…"
+  },
+  "Retry download": {
+    "ja": "ダウンロードを再試行",
+    "zh": "重试下载"
   },
   "Run kindlegarten help for commands, or kindlegarten library to list purchased books.": {
     "ja": "kindlegarten help でコマンドを、kindlegarten library で購入済みの本を表示します。",
@@ -603,6 +647,10 @@
     "ja": "本またはシリーズを 1 件以上選択してください。",
     "zh": "请选择至少一本书或一个系列。"
   },
+  "Select book or series cards and click Download selected. Use the menu on the right to set how many tasks run at once. Click the cross to cancel, the circular arrows to retry a failed task, or the folder to see your saved files.": {
+    "ja": "本やシリーズを選び、「選択項目をダウンロード」を押します。右側のメニューで同時実行数を設定できます。×でキャンセル、循環矢印で失敗したタスクの再試行、フォルダーで保存先の表示ができます。",
+    "zh": "选中单本或系列卡片后，点击「下载所选」。右侧菜单可设置同时下载的任务数。点击叉号可取消，点击环形箭头可重试失败任务，点击文件夹可打开保存位置。"
+  },
   "Select the Amazon region.": {
     "ja": "Amazon ストアを選択します。",
     "zh": "选择 Amazon 站点。"
@@ -630,6 +678,10 @@
   "Sign in": {
     "ja": "ログイン",
     "zh": "登录"
+  },
+  "Sign in before downloading.": {
+    "ja": "ダウンロードする前にログインしてください。",
+    "zh": "请先登录再下载。"
   },
   "Sign in to Amazon ({region}) before accessing the library.": {
     "ja": "本棚にアクセスするには先に Amazon（{region}）にログインしてください。",
@@ -682,6 +734,10 @@
   "Standalone books": {
     "ja": "単巻",
     "zh": "单本书籍"
+  },
+  "Starting…": {
+    "ja": "開始中…",
+    "zh": "正在开始…"
   },
   "System appearance": {
     "ja": "システム設定に従う",
@@ -887,6 +943,10 @@
     "ja": "この本にはテキスト形式が必要です。EPUB または PDF を選択してください。",
     "zh": "这本书含文字或使用了无法安全导出为 CBZ 的版式。请指定 .epub 输出。"
   },
+  "This download is already in the queue.": {
+    "ja": "このダウンロードはすでにキューにあります。",
+    "zh": "此下载已在队列中。"
+  },
   "This reader image format is unsupported.": {
     "ja": "このリーダー画像形式には対応していません。",
     "zh": "Comipo 页面的图片加密格式暂不支持。"
@@ -938,6 +998,10 @@
   "Version {version} is available.": {
     "ja": "バージョン {version} が利用できます。",
     "zh": "发现新版本 {version}。"
+  },
+  "Volume {current}/{total} · {title}": {
+    "ja": "第 {current}/{total} 巻 · {title}",
+    "zh": "第 {current}/{total} 卷 · {title}"
   },
   "Wait for the current download to finish before closing.": {
     "ja": "現在のダウンロードが完了してから閉じてください。",

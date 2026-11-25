@@ -29,7 +29,7 @@
 Back up purchased Kindle books, Comipo comics and supported DLsite ebooks and comics. For Kindle, Kindlegarten downloads the iPad edition and preserves the color illustrations Amazon supplies for that edition.
 
 - Automatically exports text-based books as EPUB and fixed-layout comics and magazines as CBZ when their pages can be extracted as images.
-- Names output files after the book title, replaces characters disallowed in filenames, and shortens long titles. One progress bar tracks the entire download.
+- Names output files after the book title, replaces characters disallowed in filenames, and shortens long titles. The CLI tracks the entire download with one progress bar.
 - Keeps a separate local sign-in for each Kindle store.
 
 Comipo comics are saved as CBZ. A series download exports the purchased volumes in volume order to a folder named after the series.
@@ -39,7 +39,7 @@ Comipo comics are saved as CBZ. A series download exports the purchased volumes 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/yinyanfr/kindlegarten/main/docs/media/bookshelf-en-dark.webp">
-    <img src="https://raw.githubusercontent.com/yinyanfr/kindlegarten/main/docs/media/bookshelf-en-light.webp" width="960" alt="Kindlegarten desktop bookshelf with book covers, search, and format controls">
+    <img src="https://raw.githubusercontent.com/yinyanfr/kindlegarten/main/docs/media/bookshelf-en-light.webp" width="960" alt="Kindlegarten bookshelf beside the Downloads panel with progress, retry, and open-folder controls">
   </picture>
   <br>
   <sub>Sample bookshelf with covers from <a href="https://standardebooks.org/ebooks">Standard Ebooks</a>.</sub>
@@ -56,9 +56,19 @@ See the [desktop build guide](https://github.com/yinyanfr/kindlegarten/blob/main
 
 Choose **Kindle**, **Comipo** or **DLsite** in the bookshelf. For Kindle, choose your store in the second menu. If you need to sign in, select **Sign in** in the center of the bookshelf. The account icon opens the account details and sign-out controls. In the sign-in window, use the provider's browser page or select **Paste credentials** for manual import instructions.
 
-The bookshelf opens from its local cache and checks for changes in the background. Use the filter icon beside search to sort books and series together by title or purchase date. Purchase date defaults to newest first and uses the latest purchased volume for a series. Hover over a cover to see its action, then click to open the series or download the book. Use the selection modifier keys and **Download selected** for bulk downloads.
+The bookshelf opens from its local cache and checks for changes in the background. Use the filter icon beside search to sort books and series together by title or purchase date. Purchase date defaults to newest first and uses the latest purchased volume for a series.
 
-Choose the destination folder and format before downloading. **Settings** controls proxy, language and appearance. The app supports English, Simplified Chinese and Japanese, with light, dark and system appearance options. **About** displays the installed version and checks for a stable GitHub release.
+### Queue and manage downloads
+
+Choose a destination folder and format. Hover over a cover and click the center icon to download a book or open a series. Click elsewhere on a card to select it. Hold Command on macOS or Ctrl on Windows and Linux to add individual cards, or hold Shift to select a range. Click **Download selected** to queue the selection. The download controls spin while tasks are being added.
+
+The **Downloads** panel on the right shows one task per selected book or series. Each row shows its progress and transfer speed when available. The menu at the top sets how many tasks can run at once, from 1 to 10, with a default of 3. You can keep browsing the bookshelf while downloads run.
+
+- **Cross** cancels a queued or active task. Files already saved stay in the destination.
+- **Circular arrows** retry a failed task with the original destination and format. The task goes to the end of the queue. Series retries skip volumes already saved in the requested format.
+- **Folder** opens the output folder after the task finishes.
+
+**Settings** controls proxy, language and appearance. The app supports English, Simplified Chinese and Japanese, with light, dark and system appearance options. **About** displays the installed version and checks for a stable GitHub release.
 
 ## CLI library and formats
 
