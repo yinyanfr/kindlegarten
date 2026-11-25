@@ -1,18 +1,90 @@
-# kindlegarten
+<p align="center">
+  <img src="docs/media/app-icon.png" width="112" height="112" alt="Kindlegarten 应用图标">
+</p>
 
-[English](README.md) · [更新日志](CHANGELOG.md)
+<h1 align="center">Kindlegarten</h1>
 
+<p align="center"><strong>备份已购电子书和漫画的桌面应用与命令行工具。</strong></p>
+
+<p align="center">
+  <a href="https://github.com/yinyanfr/kindlegarten/releases"><img src="https://img.shields.io/github/v/release/yinyanfr/kindlegarten?style=flat-square&amp;label=Release&amp;logo=github&amp;logoColor=white&amp;color=31745F" alt="最新 GitHub 版本"></a>
+  <a href="https://pypi.org/project/kindlegarten/"><img src="https://img.shields.io/pypi/v/kindlegarten?style=flat-square&amp;label=PyPI&amp;logo=pypi&amp;logoColor=white&amp;color=236598" alt="PyPI 软件包版本"></a>
+  <a href="DESKTOP_BUILD.md"><img src="https://img.shields.io/badge/Desktop-macOS%20%7C%20Windows%20%7C%20Linux-7554A2?style=flat-square" alt="桌面平台：macOS、Windows 和 Linux"></a>
+  <a href="#桌面应用"><img src="https://img.shields.io/badge/Interface-EN%20%2F%20ZH%20%2F%20JA-B7512D?style=flat-square" alt="支持英语、简体中文和日语"></a>
+  <a href="https://github.com/yinyanfr/kindlegarten/actions/workflows/publish.yml"><img src="https://img.shields.io/github/actions/workflow/status/yinyanfr/kindlegarten/publish.yml?branch=main&amp;style=flat-square&amp;label=Publish" alt="发布工作流状态"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-936A23?style=flat-square" alt="MIT 许可证"></a>
+</p>
+
+<p align="center">
+  <a href="#安装">安装说明</a> ·
+  <a href="CHANGELOG.md">更新日志</a> ·
+  <a href="README.md">English</a>
+</p>
+
+> [!TIP]
 > **使用范围**
 >
-> 本项目仅用于备份本人在 Amazon 合法购买的 Kindle 电子书，以及在 Comipo 合法购买的漫画。
+> 本项目仅用于备份本人在 Amazon 合法购买的 Kindle 电子书，以及在 Comipo 或 DLsite 合法购买的电子书和漫画。
 
-从自己的 Amazon Kindle 书库下载电子书，以 EPUB 或 CBZ 保存到本地。下载时使用 Kindle for iPad 配置，保留亚马逊为该版本提供的彩色插图。
+备份已购的 Kindle 电子书、Comipo 漫画，以及 DLsite 支持的电子书和漫画。下载 Kindle 电子书时使用 Kindle for iPad 版本，保留亚马逊为该版本提供的彩色插图。
 
 - 自动选择输出格式。文字书导出 EPUB，可提取为整页图片的固定版式漫画和杂志导出 CBZ。
 - 按书名保存，自动处理文件名中的禁用字符和过长书名。下载过程只显示一条整书进度条。
-- 支持 Amazon 日本站和美国站。登录一次后可复用本机登录状态。
+- 按 Kindle 站点分别保存本机登录状态。
 
 Comipo 漫画保存为 CBZ。下载系列时，程序会按卷号将已购漫画保存到以系列名命名的文件夹。
+
+## 桌面应用
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/bookshelf-zh-dark.webp">
+    <img src="docs/media/bookshelf-zh-light.webp" width="960" alt="Kindlegarten 桌面书库，显示图书封面、搜索和导出格式控件">
+  </picture>
+  <br>
+  <sub>示例书库，封面来自 <a href="https://standardebooks.org/ebooks">Standard Ebooks</a>。</sub>
+</p>
+
+从 [GitHub Releases](https://github.com/yinyanfr/kindlegarten/releases) 获取 macOS Apple Silicon 应用、Windows x64 便携 ZIP 或 Linux x86_64 AppImage，也可通过 Python 安装和启动桌面应用。
+
+```sh
+python -m pip install 'kindlegarten[gui]'
+kindlegarten-gui
+```
+
+平台要求和自行编译的步骤见[桌面构建说明](DESKTOP_BUILD.md)。导出 Kindle 电子书使用本机安装的 Calibre。
+
+在书库选择 **Kindle**、**Comipo** 或 **DLsite**。使用 Kindle 时，再用旁边的菜单选择站点。未登录时，点击书架中央的「登录」。用户图标会打开账号与退出登录选项。可在服务商打开的浏览器页面登录，也可点击「手动粘贴凭证」查看导入说明。
+
+书库会先显示本机缓存，再在后台检查更新。点击搜索框旁的筛选图标，可按名称或购买时间对系列和单本混排。默认按购买时间从新到旧，系列使用最近购买的一卷的时间。鼠标悬停在封面上时会显示操作图标，点击即可打开系列或下载单本。用修饰键多选后，可点击「下载所选」批量下载。
+
+下载前可选择目录和文件格式。「设置」提供代理、简体中文、English、日本語，以及浅色、深色和跟随系统的外观选项。「关于」显示本机版本，并检查 GitHub 上的稳定版本。
+
+## CLI 书库与格式
+
+```sh
+kindlegarten help
+kindlegarten help series
+kindlegarten library
+kindlegarten library --source dlsite
+kindlegarten library --source amazon --region us
+kindlegarten series SERIES_ID --source amazon --region jp --format epub --output ./books
+kindlegarten work BJ123456 --source dlsite --format pdf
+```
+
+`library` 按可核实系列列出已购书籍，显示系列和书籍 ID，默认使用 Kindle 日本站。`work` 和 `series` 默认使用 Comipo，可用 `--source amazon|comipo|dlsite` 切换。
+
+桌面应用与 `download`、`work` 和 `series` 使用相同的导出格式。
+
+| 内容 | 自动选择 | 可选格式 |
+| --- | --- | --- |
+| 文字电子书 | EPUB | EPUB 或使用 Calibre 转 PDF |
+| 纯图片漫画或杂志 | CBZ | CBZ、ZIP、固定版式 EPUB 或 PDF |
+| 仅提供 PDF 的书籍 | PDF | PDF |
+
+CLI 使用 `--format auto|epub|pdf|cbz|zip` 指定格式。下载单本时，如果省略 `--format`，可由 `--output` 的文件扩展名推断格式。显式格式须与扩展名一致。下载系列时，`--output` 指定系列文件夹的上级目录。CBZ 和 ZIP 使用相同的漫画页图归档。
+
+CLI 跟随系统语言，找不到对应语言时使用英语。可将 `KINDLEGARTEN_LANGUAGE` 设为 `en`、`zh` 或 `ja`。
 
 ## 安装
 
@@ -27,12 +99,13 @@ Windows 可用 `py -3 -m pip install kindlegarten`。若系统的 Python 由包�
 
 ## 登录方式
 
-直接运行 `kindlegarten login` 会登录 Amazon 日本站。省略 `--method` 时，默认方式由服务决定。
+直接运行 `kindlegarten login` 会登录 Amazon 日本站。Kindlegarten 为各服务和 Kindle 站点使用独立的浏览器配置，后续登录可以复用浏览器会话。
 
 | 服务 | 省略 `--method` 时 | 可选方式 |
 | --- | --- | --- |
-| Amazon Kindle | 打开系统默认浏览器，登录后把最终跳转网址粘贴回终端。 | `browser` 自动接收跳转。 `callback` 打印登录链接，由用户把最终跳转网址粘贴回终端。 |
-| Comipo（`--source comipo`） | 用 Playwright 打开浏览器。登录并返回 Comipo Play 后，回终端按回车。 | `browser` 使用默认流程。 `credentials` 使用无头 Chromium。 `cookie` 导入已有会话，无需启动浏览器。 |
+| Amazon Kindle | 打开浏览器并自动接收授权跳转。 | `browser` 使用默认流程。 `callback` 打印登录链接，由用户把最终跳转网址粘贴回终端。 |
+| Comipo（`--source comipo`） | 用 Playwright 打开浏览器。登录并返回 Comipo Play 后，程序会自动检测会话。 | `browser` 使用默认流程。 `credentials` 使用无头 Chromium。 `cookie` 导入已有会话，无需启动浏览器。 |
+| DLsite（`--source dlsite`） | 用 Playwright 打开浏览器并验证 Play 会话。 | `browser` 使用默认流程。 `cookie` 接受 Cookie 或 Play 会话 JSON 文件。 |
 
 运行 `kindlegarten login --help` 可查看所有选项。
 
@@ -43,19 +116,16 @@ kindlegarten login --region jp
 kindlegarten d B0EXAMPLE0
 ```
 
-粘贴跳转网址后，程序会注册一个 Kindle for iPad 客户端。如果无法打开系统浏览器，命令会打印登录链接。通过 SSH 使用时，可加上 `--method callback` 直接打印登录链接，在另一台设备打开，再把最终跳转网址粘贴回远程终端。粘贴内容不会回显。
-
-安装 `browser` 可选依赖后，可用 `--method browser` 自动接收 Amazon 的登录跳转。登录及验证在弹出的浏览器窗口中完成。
+登录后，程序会注册一个 Kindle for iPad 客户端。通过 SSH 使用时，加上 `--method callback` 打印登录链接，在另一台设备打开，再把最终跳转网址粘贴回远程终端。粘贴内容不会回显。
 
 ```sh
-python3 -m pip install 'kindlegarten[browser]'
 kindlegarten login --region jp --method browser
 kindlegarten login --region jp --method callback
 ```
 
 浏览器模式使用 Chrome 或 Playwright 的 Chromium。如果两者都没有，可在 CLI 的 Python 环境中运行 `python -m playwright install chromium`。
 
-`d` 是 `download` 的简写，支持相同的参数。把示例中的 `B0EXAMPLE0` 替换为书籍的十位 ASIN。也可直接传入商品链接，程序会根据域名选择日本站或美国站。单独输入 ASIN 时默认使用日本站，美区账户请在登录和下载时加上 `--region us`。
+`d` 是 `download` 的简写，支持相同的参数。把示例中的 `B0EXAMPLE0` 替换为书籍的十位 ASIN。也可直接传入商品链接，程序会根据域名选择站点。单独输入 ASIN 时默认使用日本站。登录、查看其他站点的书库，或按 ASIN 下载时可加上 `--region`。可选 `jp`、`us`、`uk`、`de`、`fr`、`it`、`es`、`nl`、`ca`、`au`、`in`、`br` 和 `mx`。
 
 ```sh
 kindlegarten download "https://www.amazon.co.jp/dp/B0EXAMPLE0"
@@ -92,13 +162,29 @@ kindlegarten login --source comipo --method cookie --session-file ~/comipo-sessi
 
 单本默认保存到 `books/<漫画名>.cbz`。系列默认保存到 `books/<系列名>/`，每本已购漫画各占一个 CBZ。再次运行同一系列时，会跳过已保存的对应 work。下载单本时，`--output` 用于指定 CBZ 文件名。下载系列时，`--output` 用于指定系列文件夹的上级目录。`browser` 和 `credentials` 登录方式会使用 Chrome 或 Playwright 的 Chromium。如果两者都没有，在 CLI 的 Python 环境中运行 `python -m playwright install chromium`。下载 Comipo 漫画无需 Calibre 或 `kindlegarten setup`。
 
+## DLsite Play
+
+```sh
+python -m pip install 'kindlegarten[dlsite]'
+kindlegarten login --source dlsite
+kindlegarten library --source dlsite
+kindlegarten work BJ123456 --source dlsite
+kindlegarten series SERIES_ID --source dlsite
+```
+
+书库列出可通过 DLsite Play 阅读的已购电子书和漫画。单本与系列的 ID 可从 `library` 查看。手动登录时，运行 `kindlegarten login --source dlsite --method cookie`，粘贴发往 `play.dlsite.com` 的 `/api/authorize` 请求的 Cookie 标头，也可加上 `--session-file` 导入已保存的 `dlsite-session.json`。
+
+## 代理设置
+
+在桌面应用的「设置」中可以选择系统代理、直连或自定义代理。CLI 通过 `KINDLEGARTEN_PROXY` 设置代理，可填 `system`（默认）、`direct` 或 HTTP、HTTPS、SOCKS5 代理地址，例如 `http://127.0.0.1:7890`。
+
 ## 发布新版本
 
-在 `kindlegarten/__init__.py` 更新 `__version__`，并在 `CHANGELOG.md` 添加同版本的 `## X.Y.Z` 小节。推送到 `main` 后，工作流会发布到 PyPI，并用对应小节创建 GitHub Release。两个平台都已有该版本时会跳过。如果发布在创建版本标签后中断，请重跑该标签所指向提交的工作流。
+在 `kindlegarten/__init__.py` 更新 `__version__`，并在 `CHANGELOG.md` 添加同版本的 `## X.Y.Z` 小节。推送到 `main` 会触发测试与三平台桌面构建。桌面构建通过后，工作流会通过 PyPI Trusted Publishing 发布 Python 包，并把桌面包附到 GitHub Release。若创建版本标签后发布失败，重跑该标签所指向提交的工作流。
 
 ## 本地数据
 
-通过 pip 安装的命令按用户保存登录状态和导出依赖。
+桌面应用和通过 pip 安装的 CLI 共用每个用户的数据目录，存放登录状态和导出依赖。桌面应用也会按服务或 Kindle 站点保存书库缓存，并缓存封面。
 
 - macOS 使用 `~/Library/Application Support/kindlegarten/`。
 - Windows 使用 `%LOCALAPPDATA%\kindlegarten\`。

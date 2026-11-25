@@ -1,0 +1,1046 @@
+{
+  "  Done": {
+    "ja": "  完了",
+    "zh": "  完成"
+  },
+  "  Interrupted": {
+    "ja": "  中断",
+    "zh": "  中断"
+  },
+  "%(prog)s: error: %(message)s\n": {
+    "ja": "%(prog)s: エラー: %(message)s\n",
+    "zh": "%(prog)s：错误：%(message)s\n"
+  },
+  "--region is only available for Amazon.": {
+    "ja": "--region は Amazon でのみ使用できます。",
+    "zh": "--region 只适用于 Amazon。"
+  },
+  "--session-file requires --method cookie with Comipo or DLsite.": {
+    "ja": "Comipo または DLsite の --session-file には --method cookie が必要です。",
+    "zh": "Comipo 或 DLsite 的 --session-file 需与 --method cookie 一起使用。"
+  },
+  "--session-file requires a JSON session saved by Kindlegarten.": {
+    "ja": "--session-file には Kindlegarten で保存した JSON セッションが必要です。",
+    "zh": "--session-file 需要 kindlegarten 保存的 comipo-session.json。"
+  },
+  "A valid Amazon redirect was not received. Try again or use --method callback.": {
+    "ja": "有効な Amazon リダイレクトを受け取れませんでした。再試行するか --method callback を使用してください。",
+    "zh": "未收到有效的 Amazon 登录跳转。请重试或使用 --method callback。"
+  },
+  "About": {
+    "ja": "このアプリについて",
+    "zh": "关于"
+  },
+  "After signing in, copy the full final URL from the browser address bar.": {
+    "ja": "ログイン後、ブラウザーのアドレスバーから最終 URL をすべてコピーしてください。",
+    "zh": "登录完成后，复制浏览器地址栏里的完整跳转网址。"
+  },
+  "Account": {
+    "ja": "アカウント",
+    "zh": "账号"
+  },
+  "Account ID": {
+    "ja": "アカウント ID",
+    "zh": "账号 ID"
+  },
+  "Already saved: {path}": {
+    "ja": "保存済み: {path}",
+    "zh": "已保存过：{path}"
+  },
+  "Amazon ASIN, Play work:ID or series:ID, or a supported link.": {
+    "ja": "Amazon ASIN、Play の work:ID、series:ID、または対応リンク。",
+    "zh": "Amazon ASIN、Comipo work:ID、series:ID 或相应链接"
+  },
+  "Amazon region (bare ASINs default to jp).": {
+    "ja": "Amazon ストア（ASIN のみの場合は jp）。",
+    "zh": "账户站点，纯 ASIN 默认 jp"
+  },
+  "Amazon region (default: jp).": {
+    "ja": "Amazon ストア（既定: jp）。",
+    "zh": "账户站点，默认 jp"
+  },
+  "Amazon sign-in timed out. Try again or use --method callback.": {
+    "ja": "Amazon ログインがタイムアウトしました。再試行するか --method callback を使用してください。",
+    "zh": "等待 Amazon 登录跳转超时。请重试，或使用 --method callback。"
+  },
+  "Amazon uses the final redirect URL. Comipo and DLsite use the Cookie request header from Play or a session JSON file.": {
+    "ja": "Amazon では最終リダイレクト URL を使用します。Comipo と DLsite では Play の Cookie リクエストヘッダーまたはセッション JSON を使用します。",
+    "zh": "Amazon 使用最终跳转链接。Comipo 和 DLsite 使用 Play 的请求 Cookie 或会话 JSON 文件。"
+  },
+  "Amazon {region} is already signed in. Run {COMMAND} logout --region {region} to switch accounts.": {
+    "ja": "Amazon {region} はログイン済みです。アカウント変更前に {COMMAND} logout --region {region} を実行してください。",
+    "zh": "{region} 已有登录状态。更换账户前请先运行 {COMMAND} logout --region {region}。"
+  },
+  "Another Kindlegarten process is busy. Try again when it has finished.": {
+    "ja": "別の Kindlegarten プロセスが実行中です。終了後に再試行してください。",
+    "zh": "另一个下载器进程正在运行，请结束后再试。"
+  },
+  "Appearance": {
+    "ja": "外観",
+    "zh": "外观"
+  },
+  "Australia": {
+    "ja": "オーストラリア",
+    "zh": "澳大利亚"
+  },
+  "Auto": {
+    "ja": "自動",
+    "zh": "自动"
+  },
+  "Back to bookshelf": {
+    "ja": "本棚に戻る",
+    "zh": "返回书库"
+  },
+  "Back up purchased Kindle, Comipo, and DLsite books.": {
+    "ja": "購入済みの Kindle、Comipo、DLsite の本をバックアップします。",
+    "zh": "下载 Kindle 和 Comipo 书库中的作品，导出 EPUB 或 CBZ。"
+  },
+  "Book ID or ASIN.": {
+    "ja": "本の ID または ASIN。",
+    "zh": "书籍 ID 或 ASIN。"
+  },
+  "Bookshelf": {
+    "ja": "本棚",
+    "zh": "书库"
+  },
+  "Brazil": {
+    "ja": "ブラジル",
+    "zh": "巴西"
+  },
+  "Browser sign-in did not complete.": {
+    "ja": "ブラウザーでのログインが完了しませんでした。",
+    "zh": "浏览器登录未完成。"
+  },
+  "Calibre could not convert this ebook to PDF.": {
+    "ja": "Calibre でこの本を PDF に変換できませんでした。",
+    "zh": "Calibre 无法将此电子书转换为 PDF。"
+  },
+  "Calibre could not load the {plugin} plugin.": {
+    "ja": "Calibre プラグイン {plugin} を読み込めませんでした。",
+    "zh": "Calibre 插件 {plugin} 加载失败。"
+  },
+  "Canada": {
+    "ja": "カナダ",
+    "zh": "加拿大"
+  },
+  "Cancelled.": {
+    "ja": "キャンセルしました。",
+    "zh": "已取消。"
+  },
+  "Check for updates": {
+    "ja": "更新を確認",
+    "zh": "检查更新"
+  },
+  "Checking for updates…": {
+    "ja": "更新を確認しています…",
+    "zh": "正在检查更新…"
+  },
+  "Choose a destination folder first.": {
+    "ja": "先に保存先フォルダーを選択してください。",
+    "zh": "请先选择下载目录。"
+  },
+  "Choose a folder and a format. Auto picks EPUB for text and CBZ for comics. ZIP holds the same comic page archive as CBZ.": {
+    "ja": "フォルダーと形式を選びます。自動では文字の本は EPUB、マンガは CBZ です。ZIP には CBZ と同じページ画像が入ります。",
+    "zh": "选择目录和格式。自动模式将文字书导出为 EPUB、漫画导出为 CBZ。ZIP 使用和 CBZ 相同的页图归档。"
+  },
+  "Choose a source and refresh to see your purchases.": {
+    "ja": "サービスを選んで本棚を更新すると購入済みの本が表示されます。",
+    "zh": "选择来源并刷新书库，查看已购书目。"
+  },
+  "Choose a source. For Kindle, choose your store. Open a series to select individual volumes, or select the whole series.": {
+    "ja": "サービスを選択します。Kindle の場合はストアも選びます。シリーズを開いて巻を選ぶか、シリーズ全体を選択できます。",
+    "zh": "选择书库来源。使用 Kindle 时，再选择站点。可以打开系列选择单卷，也可以选择整个系列。"
+  },
+  "Choose folder": {
+    "ja": "フォルダーを選択",
+    "zh": "选择目录"
+  },
+  "Chromium was not found. Run python -m playwright install chromium and try again.": {
+    "ja": "Chromium が見つかりません。python -m playwright install chromium を実行してください。",
+    "zh": "找不到 Chromium。请运行 python -m playwright install chromium 后重试。"
+  },
+  "Clear a saved local session.": {
+    "ja": "保存済みのログイン情報を削除します。",
+    "zh": "清除本地登录状态"
+  },
+  "Command line": {
+    "ja": "コマンドライン",
+    "zh": "命令行"
+  },
+  "Close": {
+    "ja": "閉じる",
+    "zh": "关闭"
+  },
+  "Command or alias.": {
+    "ja": "コマンドまたは別名。",
+    "zh": "命令或简写。"
+  },
+  "Commands": {
+    "ja": "コマンド",
+    "zh": "命令"
+  },
+  "Complete sign-in in your browser.": {
+    "ja": "ブラウザーでログインしてください。",
+    "zh": "在浏览器中完成登录。"
+  },
+  "Copy the Cookie request header from Play. A sign-in URL cannot be imported.": {
+    "ja": "Play の Cookie リクエストヘッダーをコピーしてください。ログイン URL は読み込めません。",
+    "zh": "请复制 Comipo Play 请求的 Cookie 标头值。登录后的地址栏链接无法导入。"
+  },
+  "Copy the full final URL from {site} again.": {
+    "ja": "{site} から最終 URL をもう一度すべてコピーしてください。",
+    "zh": "请重新复制 {site} 登录后地址栏里的完整网址。"
+  },
+  "Could not check for updates.": {
+    "ja": "更新を確認できませんでした。",
+    "zh": "无法检查更新。"
+  },
+  "Could not download a setup dependency.": {
+    "ja": "セットアップ用の依存ファイルを取得できませんでした。",
+    "zh": "无法下载安装依赖。"
+  },
+  "Custom proxy": {
+    "ja": "カスタムプロキシ",
+    "zh": "手动代理"
+  },
+  "Dark": {
+    "ja": "ダーク",
+    "zh": "深色"
+  },
+  "DeDRM could not process this book. Check access and format compatibility.": {
+    "ja": "DeDRM で処理できません。アクセス権と形式を確認してください。",
+    "zh": "DeDRM 无法解密该书。请确认账户有访问权限，或检查该加密版本是否受支持。"
+  },
+  "DeDRM was not loaded in the temporary Calibre profile.": {
+    "ja": "一時 Calibre プロファイルに DeDRM を読み込めませんでした。",
+    "zh": "临时 Calibre 配置未加载 DeDRM。"
+  },
+  "Dependencies are already installed.": {
+    "ja": "依存関係はインストール済みです。",
+    "zh": "依赖已安装。"
+  },
+  "Dependencies are ready.": {
+    "ja": "依存関係の準備が完了しました。",
+    "zh": "依赖安装完成。"
+  },
+  "Destination folder": {
+    "ja": "保存先フォルダー",
+    "zh": "下载目录"
+  },
+  "Direct connection": {
+    "ja": "直接接続",
+    "zh": "直连"
+  },
+  "Download a book or series.": {
+    "ja": "本またはシリーズをダウンロードします。",
+    "zh": "下载一本书或一个系列"
+  },
+  "Download an individual book.": {
+    "ja": "本を 1 冊ダウンロードします。",
+    "zh": "下载一本 Comipo 漫画"
+  },
+  "Download selected": {
+    "ja": "選択項目をダウンロード",
+    "zh": "下载所选"
+  },
+  "Download the purchased volumes of a series.": {
+    "ja": "シリーズの購入済みの巻をダウンロードします。",
+    "zh": "下载 Comipo 系列的已购漫画"
+  },
+  "Downloading [{bar}] {approximate}{percent:3d}%  {downloaded}  {speed}/s{status}": {
+    "ja": "ダウンロード [{bar}] {approximate}{percent:3d}%  {downloaded}  {speed}/s{status}",
+    "zh": "下载 [{bar}] {approximate}{percent:3d}%  {downloaded}  {speed}/s{status}"
+  },
+  "Downloading {title}…": {
+    "ja": "{title} をダウンロードしています…",
+    "zh": "正在下载《{title}》…"
+  },
+  "Downloads saved.": {
+    "ja": "ダウンロードを保存しました。",
+    "zh": "下载已保存。"
+  },
+  "Enter a 10-character ASIN or a product link from a supported Amazon store.": {
+    "ja": "10 桁の ASIN または対応する Amazon ストアの商品リンクを入力してください。",
+    "zh": "请输入 10 位 ASIN 或受支持的 Amazon 站点商品链接。"
+  },
+  "Enter a 10-character ASIN or an Amazon product link.": {
+    "ja": "10 文字の ASIN または Amazon 商品リンクを入力してください。",
+    "zh": "请输入 10 位 ASIN 或 Amazon 商品链接。"
+  },
+  "Enter a supported Play work, series, or store link.": {
+    "ja": "対応する Play の作品、シリーズ、または商品リンクを入力してください。",
+    "zh": "请输入 Comipo Play 的 work 或 series 链接，或 Comipo 商品链接。"
+  },
+  "Enter a valid proxy address.": {
+    "ja": "有効なプロキシアドレスを入力してください。",
+    "zh": "请输入有效的代理地址。"
+  },
+  "Enter the six-digit code from your authenticator.": {
+    "ja": "認証アプリの 6 桁のコードを入力してください。",
+    "zh": "请输入认证应用显示的六位验证码。"
+  },
+  "Enter work:ID, series:ID, or a supported Play link.": {
+    "ja": "work:ID、series:ID、または対応する Play リンクを指定してください。",
+    "zh": "请指定 work:ID、series:ID 或 Comipo 链接。"
+  },
+  "Enter your viviON login ID.": {
+    "ja": "viviON ログイン ID を入力してください。",
+    "zh": "请输入 viviON 登录 ID。"
+  },
+  "Enter your viviON password.": {
+    "ja": "viviON パスワードを入力してください。",
+    "zh": "请输入 viviON 密码。"
+  },
+  "Export": {
+    "ja": "書き出し",
+    "zh": "导出"
+  },
+  "Finish signing in on {site}. The login redirect is captured automatically.": {
+    "ja": "{site} でログインしてください。リダイレクトは自動で受け取ります。",
+    "zh": "请在打开的 {site} 页面完成登录。终端会自动接收跳转结果。"
+  },
+  "Format": {
+    "ja": "形式",
+    "zh": "格式"
+  },
+  "France": {
+    "ja": "フランス",
+    "zh": "法国"
+  },
+  "Germany": {
+    "ja": "ドイツ",
+    "zh": "德国"
+  },
+  "Getting started": {
+    "ja": "はじめに",
+    "zh": "使用教程"
+  },
+  "GitHub repository": {
+    "ja": "GitHub リポジトリ",
+    "zh": "GitHub 仓库"
+  },
+  "Guide": {
+    "ja": "使い方",
+    "zh": "教程"
+  },
+  "Import a Play session JSON file with cookie mode.": {
+    "ja": "cookie モードで Play のセッション JSON ファイルを読み込みます。",
+    "zh": "使用 Comipo cookie 模式导入会话 JSON 文件"
+  },
+  "Import session file": {
+    "ja": "セッションファイルを読み込む",
+    "zh": "导入会话文件"
+  },
+  "In the signed-in Play site, open Network in developer tools and reload. Copy the Cookie value from the authorize request.": {
+    "ja": "Play にログインしたら開発者ツールの「ネットワーク」を開いて再読み込みし、authorize リクエストの Cookie をコピーします。",
+    "zh": "登录 Play 后打开开发者工具的「网络」面板并刷新。复制 authorize 请求标头中的 Cookie 值。"
+  },
+  "India": {
+    "ja": "インド",
+    "zh": "印度"
+  },
+  "Install 'kindlegarten[{extra}]' in the current Python environment.": {
+    "ja": "現在の Python 環境に 'kindlegarten[{extra}]' をインストールしてください。",
+    "zh": "请在当前 Python 环境中安装 'kindlegarten[{extra}]'。"
+  },
+  "Install Kindle export dependencies.": {
+    "ja": "Kindle 変換用の依存関係をインストールします。",
+    "zh": "安装独立依赖"
+  },
+  "Install kindlegarten[comipo] to download Play books.": {
+    "ja": "Play の本をダウンロードするには kindlegarten[comipo] をインストールしてください。",
+    "zh": "请安装 kindlegarten[comipo] 以启用 Comipo 下载。"
+  },
+  "Invalid Cookie format. Copy the full Cookie header from Play.": {
+    "ja": "Cookie の形式が無効です。Play の Cookie ヘッダー全体をコピーしてください。",
+    "zh": "Cookie 格式无效。请复制 Comipo Play 请求的完整 Cookie 标头值。"
+  },
+  "Invalid Play {kind} ID.": {
+    "ja": "Play の {kind} ID が無効です。",
+    "zh": "无效的 Comipo {kind} ID。"
+  },
+  "Invalid session file. Use the JSON session saved by Kindlegarten.": {
+    "ja": "セッションファイルが無効です。Kindlegarten で保存した JSON を使用してください。",
+    "zh": "会话文件格式无效。请使用 kindlegarten 保存的 comipo-session.json。"
+  },
+  "Italy": {
+    "ja": "イタリア",
+    "zh": "意大利"
+  },
+  "Japan": {
+    "ja": "日本",
+    "zh": "日本"
+  },
+  "KFX Input could not convert this file.": {
+    "ja": "KFX Input でこのファイルを変換できませんでした。",
+    "zh": "KFX Input 无法转换这份 KFX。"
+  },
+  "KFX Input did not produce a valid output file.": {
+    "ja": "KFX Input が有効なファイルを生成しませんでした。",
+    "zh": "KFX Input 没有生成一个有效的输出文件。"
+  },
+  "Kindle store": {
+    "ja": "Kindle ストア",
+    "zh": "Kindle 站点"
+  },
+  "Language": {
+    "ja": "言語",
+    "zh": "语言"
+  },
+  "Light": {
+    "ja": "ライト",
+    "zh": "浅色"
+  },
+  "List purchased books and series.": {
+    "ja": "購入済みの本とシリーズを一覧表示します。",
+    "zh": "列出已购书籍和系列。"
+  },
+  "Login ID": {
+    "ja": "ログイン ID",
+    "zh": "登录 ID"
+  },
+  "Mexico": {
+    "ja": "メキシコ",
+    "zh": "墨西哥"
+  },
+  "Netherlands": {
+    "ja": "オランダ",
+    "zh": "荷兰"
+  },
+  "Network": {
+    "ja": "ネットワーク",
+    "zh": "网络"
+  },
+  "No free output filename for {title}.": {
+    "ja": "{title} に使用できる出力ファイル名がありません。",
+    "zh": "无法为《{title}》找到可用输出文件名。"
+  },
+  "No purchased books found.": {
+    "ja": "購入済みの本が見つかりません。",
+    "zh": "没有找到已购书籍。"
+  },
+  "No purchased volumes were found for series {id}.": {
+    "ja": "シリーズ {id} に購入済みの巻がありません。",
+    "zh": "系列 {id} 没有找到已购卷册。"
+  },
+  "No sign-in cookie was found. Sign in to Play first.": {
+    "ja": "ログイン Cookie が見つかりません。先に Play にログインしてください。",
+    "zh": "没有找到 Comipo 登录 Cookie。请先在 Comipo Play 完成登录。"
+  },
+  "No supported image comic is available for {work_id}.": {
+    "ja": "{work_id} に対応する画像マンガがありません。",
+    "zh": "{work_id} 没有 Comipo 阅读器支持的图片漫画。"
+  },
+  "Open Amazon sign-in link": {
+    "ja": "Amazon ログインリンクを開く",
+    "zh": "打开 Amazon 登录链接"
+  },
+  "Open Settings to choose system, direct, or custom routing. Kindle exports require Calibre.": {
+    "ja": "設定からシステム、直接接続、カスタムプロキシを選びます。Kindle の書き出しには Calibre が必要です。",
+    "zh": "在设置中选择系统代理、直连或手动代理。Kindle 导出需要 Calibre。"
+  },
+  "Open browser": {
+    "ja": "ブラウザーを開く",
+    "zh": "打开浏览器"
+  },
+  "Open release": {
+    "ja": "リリースを開く",
+    "zh": "打开发布页"
+  },
+  "Open the Amazon link below, then paste the full final address after signing in.": {
+    "ja": "下の Amazon リンクを開き、ログイン後にアドレスバーの最終 URL をすべて貼り付けます。",
+    "zh": "打开下方的 Amazon 链接，登录后粘贴地址栏中的完整跳转地址。"
+  },
+  "Open the Amazon sign-in link first.": {
+    "ja": "先に Amazon ログインリンクを開いてください。",
+    "zh": "请先打开 Amazon 登录链接。"
+  },
+  "Open the provider’s browser and complete sign-in. If needed, choose Paste credentials.": {
+    "ja": "サービスのブラウザーでログインします。必要に応じて「認証情報を貼り付け」を選択してください。",
+    "zh": "在服务商的浏览器窗口中完成登录。需要时可以选择「手动粘贴凭证」。"
+  },
+  "Open this sign-in URL in a browser:\n{url}": {
+    "ja": "ブラウザーでログイン URL を開いてください:\n{url}",
+    "zh": "请在浏览器打开此登录地址：\n{url}"
+  },
+  "Output file for a single book or parent directory for a series.": {
+    "ja": "単巻の出力ファイルまたはシリーズの親フォルダー。",
+    "zh": "单本指定 .epub 或 .cbz，Comipo 系列指定父目录，默认 books/"
+  },
+  "Output filename (default directory: books/).": {
+    "ja": "出力ファイル名（既定フォルダー: books/）。",
+    "zh": "指定 CBZ 文件，默认保存到 books/"
+  },
+  "Parent directory for the series (default: books/).": {
+    "ja": "シリーズの親フォルダー（既定: books/）。",
+    "zh": "指定系列文件夹的上级目录，默认 books/"
+  },
+  "Paste a Cookie in an interactive terminal or import a file with --session-file.": {
+    "ja": "対話型ターミナルで Cookie を貼り付けるか、--session-file で読み込んでください。",
+    "zh": "请在交互式终端粘贴 Cookie，或使用 --session-file 导入会话文件。"
+  },
+  "Paste credentials": {
+    "ja": "認証情報を貼り付け",
+    "zh": "手动粘贴凭证"
+  },
+  "Paste credentials first.": {
+    "ja": "認証情報を貼り付けてください。",
+    "zh": "请先粘贴凭证。"
+  },
+  "Paste the Cookie header value on a single line.": {
+    "ja": "Cookie ヘッダーの値を 1 行で貼り付けてください。",
+    "zh": "请粘贴单行 Cookie 标头值。"
+  },
+  "Paste the Play Cookie header and press Enter (input hidden): ": {
+    "ja": "Play の Cookie ヘッダーを貼り付けて Enter を押してください（入力非表示）: ",
+    "zh": "粘贴 Comipo Play 请求的 Cookie 标头值并按回车（输入隐藏）："
+  },
+  "Paste the final URL and press Enter (input hidden): ": {
+    "ja": "最終 URL を貼り付けて Enter を押してください（入力非表示）: ",
+    "zh": "粘贴登录后的完整网址并按回车（输入隐藏）："
+  },
+  "Preparing download…": {
+    "ja": "ダウンロードを準備しています…",
+    "zh": "正在准备下载…"
+  },
+  "Preparing kindl, DeDRM, and KFX Input…": {
+    "ja": "kindl、DeDRM、KFX Input を準備しています…",
+    "zh": "正在安装 kindl、DeDRM 和 KFX Input…"
+  },
+  "Preparing the Kindle file for conversion…": {
+    "ja": "Kindle ファイルを変換しています…",
+    "zh": "正在去除 DRM 并转换文件…"
+  },
+  "Proxy": {
+    "ja": "プロキシ",
+    "zh": "代理"
+  },
+  "Proxy address": {
+    "ja": "プロキシアドレス",
+    "zh": "代理地址"
+  },
+  "Proxy password": {
+    "ja": "プロキシパスワード",
+    "zh": "代理密码"
+  },
+  "Proxy username": {
+    "ja": "プロキシユーザー名",
+    "zh": "代理用户名"
+  },
+  "Purchase date · newest first": {
+    "ja": "購入日 · 新しい順",
+    "zh": "购买时间 · 最新优先"
+  },
+  "Purchase date · oldest first": {
+    "ja": "購入日 · 古い順",
+    "zh": "购买时间 · 最早优先"
+  },
+  "Python dependencies could not be installed. Check Python and the connection.": {
+    "ja": "Python 依存関係をインストールできません。Python と接続を確認してください。",
+    "zh": "安装 Python 依赖失败，请检查 Python 安装及网络。"
+  },
+  "Refresh": {
+    "ja": "更新",
+    "zh": "刷新"
+  },
+  "Refreshing bookshelf…": {
+    "ja": "本棚を更新しています…",
+    "zh": "正在刷新书库…"
+  },
+  "Requesting the {region} Kindle for iPad edition of {asin}…": {
+    "ja": "{region} の Kindle for iPad 版 {asin} を取得しています…",
+    "zh": "正在请求 {region} 站 iPad 版 {asin}…"
+  },
+  "Run kindlegarten help for commands, or kindlegarten library to list purchased books.": {
+    "ja": "kindlegarten help でコマンドを、kindlegarten library で購入済みの本を表示します。",
+    "zh": "运行 kindlegarten help 查看用法，或运行 kindlegarten library 列出已购书目。"
+  },
+  "Run the Play login command in an interactive terminal.": {
+    "ja": "対話型ターミナルで Play のログインを実行してください。",
+    "zh": "请在交互式终端中运行 Comipo 登录命令。"
+  },
+  "Run the login command in an interactive terminal.": {
+    "ja": "対話型ターミナルでログインを実行してください。",
+    "zh": "请在交互式终端中运行登录命令。"
+  },
+  "Run {COMMAND} login --region {region} first.": {
+    "ja": "先に {COMMAND} login --region {region} を実行してください。",
+    "zh": "请先运行 {COMMAND} login --region {region}。"
+  },
+  "Run {COMMAND} setup first.": {
+    "ja": "先に {COMMAND} setup を実行してください。",
+    "zh": "请先运行 {COMMAND} setup。"
+  },
+  "Save settings": {
+    "ja": "設定を保存",
+    "zh": "保存设置"
+  },
+  "Saved Amazon session cleared for {region}.": {
+    "ja": "Amazon {region} の保存済みセッションを削除しました。",
+    "zh": "已清除 Amazon {region} 的本地会话。"
+  },
+  "Saved session cleared for {site}.": {
+    "ja": "{site} の保存済みセッションを削除しました。",
+    "zh": "已清除 {site} 的本地会话。"
+  },
+  "Saved the Comipo session.": {
+    "ja": "Comipo のセッションを保存しました。",
+    "zh": "已保存 Comipo 登录状态。"
+  },
+  "Saved the local sign-in session for {site}.": {
+    "ja": "{site} のログイン情報を保存しました。",
+    "zh": "已为 {site} 保存本机登录状态。"
+  },
+  "Saved {destination}": {
+    "ja": "{destination} に保存しました",
+    "zh": "已保存 {destination}"
+  },
+  "Search titles": {
+    "ja": "タイトルを検索",
+    "zh": "搜索书名"
+  },
+  "Select at least one book or series.": {
+    "ja": "本またはシリーズを 1 件以上選択してください。",
+    "zh": "请选择至少一本书或一个系列。"
+  },
+  "Select the Amazon region.": {
+    "ja": "Amazon ストアを選択します。",
+    "zh": "选择 Amazon 站点。"
+  },
+  "Select the book source.": {
+    "ja": "サービスを選択します。",
+    "zh": "选择书籍来源。"
+  },
+  "Select the output format.": {
+    "ja": "出力形式を選択します。",
+    "zh": "选择输出格式。"
+  },
+  "Series ID.": {
+    "ja": "シリーズ ID。",
+    "zh": "系列 ID。"
+  },
+  "Settings": {
+    "ja": "設定",
+    "zh": "设置"
+  },
+  "Show command help.": {
+    "ja": "コマンドヘルプを表示します。",
+    "zh": "显示命令帮助。"
+  },
+  "Sign in": {
+    "ja": "ログイン",
+    "zh": "登录"
+  },
+  "Sign in to Amazon ({region}) before accessing the library.": {
+    "ja": "本棚にアクセスするには先に Amazon（{region}）にログインしてください。",
+    "zh": "请先登录 Amazon（{region}），再访问书库。"
+  },
+  "Sign in to Amazon, Comipo, or DLsite.": {
+    "ja": "Amazon、Comipo、DLsite にログインします。",
+    "zh": "登录 Amazon 或 Comipo"
+  },
+  "Sign in to {site} before accessing the library.": {
+    "ja": "本棚にアクセスするには先に {site} にログインしてください。",
+    "zh": "请先登录 {site}，再访问书库。"
+  },
+  "Sign out": {
+    "ja": "ログアウト",
+    "zh": "退出登录"
+  },
+  "Signed in": {
+    "ja": "ログイン済み",
+    "zh": "已登录"
+  },
+  "Signed out.": {
+    "ja": "ログアウトしました。",
+    "zh": "已退出登录。"
+  },
+  "Some publisher fonts could not be mapped. EPUB fallback fonts were retained.": {
+    "ja": "一部の出版社フォントを割り当てできなかったため、EPUB の代替フォント設定を保持しました。",
+    "zh": "还有出版方字体无法映射，已保留 EPUB 的字体回退设置。"
+  },
+  "Sort bookshelf": {
+    "ja": "本棚の並べ替え",
+    "zh": "排序书库"
+  },
+  "Source": {
+    "ja": "サービス",
+    "zh": "来源"
+  },
+  "Source (auto-detected from the ID or link when omitted).": {
+    "ja": "サービス（省略時は ID またはリンクから判定）。",
+    "zh": "指定服务，省略时从 ID 或链接识别"
+  },
+  "Source (default: amazon).": {
+    "ja": "サービス（既定: amazon）。",
+    "zh": "服务，默认 amazon"
+  },
+  "Spain": {
+    "ja": "スペイン",
+    "zh": "西班牙"
+  },
+  "Standalone books": {
+    "ja": "単巻",
+    "zh": "单本书籍"
+  },
+  "System appearance": {
+    "ja": "システム設定に従う",
+    "zh": "跟随系统"
+  },
+  "System language": {
+    "ja": "システム言語",
+    "zh": "系统语言"
+  },
+  "System proxy": {
+    "ja": "システムプロキシ",
+    "zh": "系统代理"
+  },
+  "Terminal echo could not be disabled. Sign in from an interactive terminal.": {
+    "ja": "入力の表示を無効にできません。対話型ターミナルでログインしてください。",
+    "zh": "无法关闭终端回显。请通过交互式终端登录。"
+  },
+  "The CBZ page count did not match or the archive was invalid.": {
+    "ja": "CBZ のページ数が一致しないか、アーカイブが壊れています。",
+    "zh": "CBZ 的图片页数与原书不符，或存档校验失败。"
+  },
+  "The EPUB could not be validated.": {
+    "ja": "EPUB を検証できませんでした。",
+    "zh": "EPUB 校验失败。"
+  },
+  "The EPUB package is missing.": {
+    "ja": "EPUB のパッケージファイルがありません。",
+    "zh": "EPUB 缺少目录清单。"
+  },
+  "The EPUB spine is missing.": {
+    "ja": "EPUB の読み順がありません。",
+    "zh": "EPUB 缺少正文阅读顺序。"
+  },
+  "The Kindle download worker failed.": {
+    "ja": "Kindle ダウンロード処理に失敗しました。",
+    "zh": "Kindle 下载进程失败。"
+  },
+  "The Kindle worker failed. Check the previous error message.": {
+    "ja": "Kindle の処理に失敗しました。直前のエラーを確認してください。",
+    "zh": "Kindle 后台进程失败，请查看错误提示。"
+  },
+  "The PDF could not be validated.": {
+    "ja": "PDF を検証できませんでした。",
+    "zh": "PDF 校验失败。"
+  },
+  "The browser or network request failed. Check the connection and retry {command}.": {
+    "ja": "ブラウザーまたは通信に失敗しました。接続を確認して {command} を再実行してください。",
+    "zh": "浏览器或网络请求失败。请检查网络后重试 {command}。"
+  },
+  "The comic archive is incomplete or invalid.": {
+    "ja": "マンガのアーカイブが不完全か無効です。",
+    "zh": "漫画压缩包缺页或格式无效。"
+  },
+  "The dependency checksum did not match: {url}": {
+    "ja": "依存ファイルのチェックサムが一致しません: {url}",
+    "zh": "依赖包的 SHA-256 与预期不符：{url}"
+  },
+  "The ebook contains an invalid resource path.": {
+    "ja": "電子書籍に無効なリソースパスがあります。",
+    "zh": "电子书包含无效的资源路径。"
+  },
+  "The file was saved, but download history could not be recorded.": {
+    "ja": "ファイルは保存しましたが、ダウンロード履歴を記録できませんでした。",
+    "zh": "文件已保存，但无法记录下载历史。"
+  },
+  "The following books could not be saved: {ids}.": {
+    "ja": "次の本を保存できませんでした: {ids}。",
+    "zh": "以下书籍未能保存：{ids}。"
+  },
+  "The generated EPUB is incomplete.": {
+    "ja": "生成した EPUB が不完全です。",
+    "zh": "生成的 EPUB 文件结构不完整。"
+  },
+  "The link does not match the selected source.": {
+    "ja": "リンクと選択したサービスが一致しません。",
+    "zh": "链接与所选来源不一致。"
+  },
+  "The manifest for {work_id} contains no comic pages.": {
+    "ja": "{work_id} のマニフェストにマンガのページがありません。",
+    "zh": "{work_id} 的 Comipo 清单没有漫画页面。"
+  },
+  "The operation failed ({detail}). Check your session, connection, and access to the book.": {
+    "ja": "処理に失敗しました（{detail}）。ログイン、接続、作品のアクセス権を確認してください。",
+    "zh": "操作失败（{detail}）。请检查登录状态、网络及该书在对应站点的访问权限。"
+  },
+  "The operation failed. Check the connection, account, or destination.": {
+    "ja": "操作に失敗しました。接続、アカウント、保存先を確認してください。",
+    "zh": "操作失败。请检查连接、账号或目标目录。"
+  },
+  "The operation failed: {error}": {
+    "ja": "処理に失敗しました: {error}",
+    "zh": "操作失败：{error}"
+  },
+  "The output already exists at {path}. Choose another file with --output.": {
+    "ja": "{path} は既に存在します。--output で別のファイルを指定してください。",
+    "zh": "输出文件已存在：{path}。请用 --output 指定新文件。"
+  },
+  "The output filename extension does not match --format {format}.": {
+    "ja": "出力ファイルの拡張子が --format {format} と一致しません。",
+    "zh": "输出文件扩展名与 --format {format} 不一致。"
+  },
+  "The output filename needs an EPUB, PDF, CBZ, or ZIP extension.": {
+    "ja": "出力ファイルには EPUB、PDF、CBZ、ZIP の拡張子が必要です。",
+    "zh": "输出文件应使用 EPUB、PDF、CBZ 或 ZIP 扩展名。"
+  },
+  "The page was not a recognizable image.": {
+    "ja": "ページを画像として認識できませんでした。",
+    "zh": "Comipo 返回的页面无法识别为图片。"
+  },
+  "The pasted URL does not contain the expected Amazon authorization code.": {
+    "ja": "貼り付けた URL に Amazon の認証コードがありません。",
+    "zh": "粘贴的链接缺少 Amazon 授权码。"
+  },
+  "The product link and --region specify different Amazon stores.": {
+    "ja": "商品リンクと --region の Amazon ストアが一致しません。",
+    "zh": "商品链接站点与 --region 不一致。"
+  },
+  "The product link does not contain an ASIN.": {
+    "ja": "商品リンクに ASIN がありません。",
+    "zh": "商品链接里找不到 ASIN。"
+  },
+  "The provider returned an unrecognized reader address.": {
+    "ja": "サービスから不明なリーダーアドレスが返されました。",
+    "zh": "服务返回了无法识别的阅读器地址。"
+  },
+  "The reader did not supply a usable image key.": {
+    "ja": "リーダーから有効な画像キーが提供されませんでした。",
+    "zh": "Comipo 页面未提供有效的图片密钥。"
+  },
+  "The reader key for {work_id} could not be read.": {
+    "ja": "{work_id} のリーダーキーを読み取れませんでした。",
+    "zh": "无法读取 {work_id} 的 Comipo 阅读器密钥。"
+  },
+  "The reader returned an invalid image key.": {
+    "ja": "リーダーの画像キーが無効です。",
+    "zh": "Comipo 页面返回了无效的图片密钥。"
+  },
+  "The reader returned an invalid resource path.": {
+    "ja": "リーダーのリソースパスが無効です。",
+    "zh": "Comipo 返回了无效的资源路径。"
+  },
+  "The reader returned an unknown resource host.": {
+    "ja": "リーダーが不明なホストを返しました。",
+    "zh": "Comipo 返回了未知的资源域名。"
+  },
+  "The reader returned invalid JSON.": {
+    "ja": "リーダーから無効な JSON が返されました。",
+    "zh": "Comipo 返回了无法读取的 JSON。"
+  },
+  "The saved device serial is invalid. Sign in again.": {
+    "ja": "保存済みのデバイス番号が無効です。もう一度ログインしてください。",
+    "zh": "本地登录状态里的设备序列号无效，请重新登录。"
+  },
+  "The saved session is incomplete. Sign in again.": {
+    "ja": "保存済みのログイン情報が不完全です。もう一度ログインしてください。",
+    "zh": "本地登录状态不完整，请重新登录。"
+  },
+  "The saved {site} session has expired. Sign in again.": {
+    "ja": "保存済みの {site} セッションの期限が切れました。再度ログインしてください。",
+    "zh": "已保存的 {site} 会话已过期，请重新登录。"
+  },
+  "The saved {site} session is invalid. Sign in again.": {
+    "ja": "保存済みの {site} セッションが無効です。再度ログインしてください。",
+    "zh": "已保存的 {site} 会话无效，请重新登录。"
+  },
+  "The service did not establish a session.": {
+    "ja": "サービスがセッションを確立できませんでした。",
+    "zh": "服务没有建立有效的会话。"
+  },
+  "The service did not return the complete library.": {
+    "ja": "サービスから本棚の全件を取得できませんでした。",
+    "zh": "服务未返回完整书库。"
+  },
+  "The service rejected this session. Sign in and copy fresh cookies.": {
+    "ja": "サービスがセッションを拒否しました。再度ログインして新しい Cookie をコピーしてください。",
+    "zh": "服务未接受此会话。请重新登录并复制最新的 Cookie。"
+  },
+  "The service returned an unrecognized book response.": {
+    "ja": "サービスから不明な書籍データが返されました。",
+    "zh": "服务返回了无法识别的书籍数据。"
+  },
+  "The session file must be UTF-8 JSON.": {
+    "ja": "セッションファイルは UTF-8 の JSON である必要があります。",
+    "zh": "会话文件必须是 UTF-8 格式的 comipo-session.json。"
+  },
+  "The viviON ID form points to an unknown sign-in address. Use --method browser.": {
+    "ja": "viviON ID フォームのログイン先が不明です。--method browser を使用してください。",
+    "zh": "viviON ID 表单指向了未知的登录地址。请使用 --method browser。"
+  },
+  "This DLsite work has no supported ebook rendition.": {
+    "ja": "この DLsite 作品に対応する電子書籍版がありません。",
+    "zh": "这个 DLsite 作品没有受支持的电子书版本。"
+  },
+  "This book does not support {format} export.": {
+    "ja": "この本は {format} 形式で出力できません。",
+    "zh": "这本书不支持导出为 {format}。"
+  },
+  "This book is not in the purchased library.": {
+    "ja": "この本は購入済みの本棚にありません。",
+    "zh": "这本书不在已购书库中。"
+  },
+  "This book needs a text format. Select EPUB or PDF instead.": {
+    "ja": "この本にはテキスト形式が必要です。EPUB または PDF を選択してください。",
+    "zh": "这本书含文字或使用了无法安全导出为 CBZ 的版式。请指定 .epub 输出。"
+  },
+  "This reader image format is unsupported.": {
+    "ja": "このリーダー画像形式には対応していません。",
+    "zh": "Comipo 页面的图片加密格式暂不支持。"
+  },
+  "Title · A–Z": {
+    "ja": "タイトル · 昇順",
+    "zh": "名称 · 升序"
+  },
+  "Title · Z–A": {
+    "ja": "タイトル · 降順",
+    "zh": "名称 · 降序"
+  },
+  "United Kingdom": {
+    "ja": "英国",
+    "zh": "英国"
+  },
+  "United States": {
+    "ja": "米国",
+    "zh": "美国"
+  },
+  "Unsupported format: {format}": {
+    "ja": "未対応の形式: {format}",
+    "zh": "不支持的格式：{format}"
+  },
+  "Use --method browser or --method callback for Amazon.": {
+    "ja": "Amazon では --method browser または --method callback を使用してください。",
+    "zh": "Amazon 请使用 --method browser 或 --method callback。"
+  },
+  "Use --method cookie or browser for this service.": {
+    "ja": "このサービスでは --method cookie または --method browser を使用してください。",
+    "zh": "此服务请使用 --method cookie 或 --method browser。"
+  },
+  "Use Python 3.11 or later.": {
+    "ja": "Python 3.11 以降を使用してください。",
+    "zh": "请使用 Python 3.11 或更新版。"
+  },
+  "Verified and saved the Comipo session.": {
+    "ja": "Comipo のセッションを確認して保存しました。",
+    "zh": "已验证并保存 Comipo 登录状态。"
+  },
+  "Verify and save": {
+    "ja": "確認して保存",
+    "zh": "验证并保存"
+  },
+  "Version {version}": {
+    "ja": "バージョン {version}",
+    "zh": "版本 {version}"
+  },
+  "Version {version} is available.": {
+    "ja": "バージョン {version} が利用できます。",
+    "zh": "发现新版本 {version}。"
+  },
+  "Wait for the current download to finish before closing.": {
+    "ja": "現在のダウンロードが完了してから閉じてください。",
+    "zh": "请等待当前下载完成后关闭窗口。"
+  },
+  "Waiting for sign-in…": {
+    "ja": "ログインを待っています…",
+    "zh": "正在等待登录…"
+  },
+  "You are using the latest version.": {
+    "ja": "最新バージョンを使用しています。",
+    "zh": "当前是最新版本。"
+  },
+  "Your bookshelf": {
+    "ja": "マイ本棚",
+    "zh": "我的书库"
+  },
+  "browser opens a browser, callback pastes an Amazon redirect, credentials signs in to Comipo, and cookie imports a Play session.": {
+    "ja": "browser はブラウザーを開き、callback は Amazon URL を貼り付け、credentials は Comipo にログインし、cookie は Play セッションを読み込みます。",
+    "zh": "browser 打开浏览器，callback 粘贴 Amazon 跳转网址，credentials 输入 Comipo 凭据，cookie 导入 Comipo 会话"
+  },
+  "error: %(message)s\n": {
+    "ja": "エラー: %(message)s\n",
+    "zh": "错误：%(message)s\n"
+  },
+  "invalid choice: %(value)r (choose from %(choices)s)": {
+    "ja": "無効な選択肢 %(value)r（選択可能: %(choices)s）",
+    "zh": "无效选项 %(value)r（可选值：%(choices)s）"
+  },
+  "options": {
+    "ja": "オプション",
+    "zh": "选项"
+  },
+  "positional arguments": {
+    "ja": "位置引数",
+    "zh": "位置参数"
+  },
+  "show program's version number and exit": {
+    "ja": "バージョンを表示して終了",
+    "zh": "显示版本号并退出"
+  },
+  "show this help message and exit": {
+    "ja": "このヘルプを表示して終了",
+    "zh": "显示此帮助并退出"
+  },
+  "the following arguments are required: %s": {
+    "ja": "次の引数が必要です: %s",
+    "zh": "缺少必填参数：%s"
+  },
+  "unrecognized arguments: %s": {
+    "ja": "不明な引数: %s",
+    "zh": "无法识别的参数：%s"
+  },
+  "usage: ": {
+    "ja": "使用法: ",
+    "zh": "用法："
+  },
+  "viviON ID did not return the expected login form. Check your credentials or use --method browser.": {
+    "ja": "viviON ID のログインフォームを取得できません。認証情報を確認するか --method browser を使用してください。",
+    "zh": "viviON ID 未返回预期的登录表单或跳转。请检查凭据，或使用 --method browser。"
+  },
+  "viviON ID rejected the code or needs additional verification. Check it and try again.": {
+    "ja": "viviON ID がコードを拒否したか追加確認が必要です。確認して再試行してください。",
+    "zh": "viviON ID 未接受验证码或还需要人工验证。请检查后重试。"
+  },
+  "viviON ID requires interactive Cloudflare verification. Use --method browser.": {
+    "ja": "viviON ID が Cloudflare の確認を要求しています。--method browser を使用してください。",
+    "zh": "viviON ID 要求人工完成 Cloudflare 验证。请使用 --method browser。"
+  },
+  "viviON login ID: ": {
+    "ja": "viviON ログイン ID: ",
+    "zh": "viviON 登录 ID："
+  },
+  "viviON password (input hidden): ": {
+    "ja": "viviON パスワード（入力非表示）: ",
+    "zh": "viviON 密码（输入隐藏）："
+  },
+  "viviON verification code (input hidden): ": {
+    "ja": "viviON 認証コード（入力非表示）:",
+    "zh": "viviON 两步验证码（输入隐藏）："
+  },
+  "{binary} was not found. Install Calibre or set KINDLE_CALIBRE_BIN to its executable directory.": {
+    "ja": "{binary} が見つかりません。Calibre をインストールするか、KINDLE_CALIBRE_BIN に実行ファイルのフォルダーを指定してください。",
+    "zh": "找不到 {binary}。请安装 Calibre，或用 KINDLE_CALIBRE_BIN 指定其可执行文件目录。"
+  },
+  "{count} purchased books": {
+    "ja": "購入済み {count} 冊",
+    "zh": "{count} 本已购"
+  },
+  "{site} refused access (HTTP {status}). Check your session and purchases.": {
+    "ja": "{site} がアクセスを拒否しました（HTTP {status}）。セッションと購入状況を確認してください。",
+    "zh": "{site} 拒绝访问（HTTP {status}）。请检查会话及购买状态。"
+  },
+  "{site} request failed (HTTP {status}).": {
+    "ja": "{site} のリクエストに失敗しました（HTTP {status}）。",
+    "zh": "{site} 请求失败（HTTP {status}）。"
+  },
+  "{title} [{id}] · {count} purchased books": {
+    "ja": "{title} [{id}] · 購入済み {count} 冊",
+    "zh": "{title} [{id}] · {count} 本已购"
+  },
+  "{title}: {count} purchased volumes": {
+    "ja": "{title}: 購入済み {count} 巻",
+    "zh": "{title}：{count} 本已购卷册"
+  }
+}

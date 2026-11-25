@@ -228,3 +228,5 @@ __marimo__/
 *.epub
 *.cbz
 .DS_Store
+
+/dist-desktop/

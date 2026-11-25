@@ -28,17 +28,19 @@ class LoginOptionsTest(unittest.TestCase):
                     login.assert_called_once_with(data, "kindlegarten", method=method)
 
     def test_amazon_browser_dispatches_through_the_kindle_worker(self):
-        with (
-            TemporaryDirectory() as temporary,
-            patch.dict("os.environ", {"KINDLEGARTEN_DATA_DIR": temporary}),
-            patch("sys.argv", ["kindlegarten", "login", "--region", "us", "--method", "browser"]),
-            patch.object(cli, "require_setup"),
-            patch.object(cli, "run_worker") as worker,
-        ):
-            self.assertEqual(cli.entrypoint(), 0)
-            worker.assert_called_once_with(
-                "_login", "us", Path(temporary).resolve() / "account-us.json", "browser", sys.executable
-            )
+        for options in ([], ["--method", "browser"]):
+            with (
+                self.subTest(options=options),
+                TemporaryDirectory() as temporary,
+                patch.dict("os.environ", {"KINDLEGARTEN_DATA_DIR": temporary}),
+                patch("sys.argv", ["kindlegarten", "login", "--region", "us", *options]),
+                patch.object(cli, "require_setup"),
+                patch.object(cli, "run_worker") as worker,
+            ):
+                self.assertEqual(cli.entrypoint(), 0)
+                worker.assert_called_once_with(
+                    "_login", "us", Path(temporary).resolve() / "account-us.json", "browser", sys.executable
+                )
 
     def test_method_mismatch(self):
         for source, method, message in (
@@ -108,7 +110,7 @@ class ComipoCookieTest(unittest.TestCase):
             data = Path(temporary)
             state = comipo.session_path(data)
             state.write_text("existing", encoding="utf-8")
-            with self.assertRaisesRegex(comipo.KindleError, "未接受"):
+            with self.assertRaises(comipo.KindleError):
                 comipo.import_session(data, "kindlegarten", None)
             self.assertEqual(state.read_text(encoding="utf-8"), "existing")
             request.dispose.assert_called_once()

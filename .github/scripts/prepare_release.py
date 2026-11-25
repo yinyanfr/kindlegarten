@@ -51,7 +51,7 @@ def main():
     github_api = os.environ["GITHUB_API_URL"]
     repository = os.environ["GITHUB_REPOSITORY"]
     github = get_json(f"{github_api}/repos/{repository}/releases/tags/{tag}", headers)
-    release_github = github is None
+    release_github = github is None or github.get("draft", False)
     create_tag = False
 
     if upload_pypi or release_github:

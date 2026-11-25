@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0
+
+- Add a native desktop bookshelf, provider sign-in, proxy settings, downloads, tutorials and GitHub release checks.
+- Add a local bookshelf and cover cache, background refresh, mixed book and series sorting, and hover actions.
+- Add a separate Kindle store selector with 13 stores and a bookshelf sign-in button for signed-out providers.
+- Add purchased-book listing for Amazon Kindle, Comipo and DLsite, including verified series and book IDs.
+- Add EPUB, PDF, CBZ and comic ZIP format selection to the desktop app and CLI.
+- Localize the desktop app and CLI in English, Simplified Chinese and Japanese.
+- Add Windows portable, Linux AppImage and macOS application build workflows.
+
 ## 0.2.0
 
 ### Added

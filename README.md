@@ -1,18 +1,90 @@
-# kindlegarten
+<p align="center">
+  <img src="https://raw.githubusercontent.com/yinyanfr/kindlegarten/main/docs/media/app-icon.png" width="112" height="112" alt="Kindlegarten app icon">
+</p>
 
-[简体中文](https://github.com/yinyanfr/kindlegarten/blob/main/README.zh-CN.md) · [Changelog](https://github.com/yinyanfr/kindlegarten/blob/main/CHANGELOG.md)
+<h1 align="center">Kindlegarten</h1>
 
+<p align="center"><strong>A desktop app and CLI for backing up your purchased ebooks and comics.</strong></p>
+
+<p align="center">
+  <a href="https://github.com/yinyanfr/kindlegarten/releases"><img src="https://img.shields.io/github/v/release/yinyanfr/kindlegarten?style=flat-square&amp;label=Release&amp;logo=github&amp;logoColor=white&amp;color=31745F" alt="Latest GitHub release"></a>
+  <a href="https://pypi.org/project/kindlegarten/"><img src="https://img.shields.io/pypi/v/kindlegarten?style=flat-square&amp;label=PyPI&amp;logo=pypi&amp;logoColor=white&amp;color=236598" alt="PyPI package version"></a>
+  <a href="https://github.com/yinyanfr/kindlegarten/blob/main/DESKTOP_BUILD.md"><img src="https://img.shields.io/badge/Desktop-macOS%20%7C%20Windows%20%7C%20Linux-7554A2?style=flat-square" alt="Desktop platforms: macOS, Windows, and Linux"></a>
+  <a href="#desktop-app"><img src="https://img.shields.io/badge/Interface-EN%20%2F%20ZH%20%2F%20JA-B7512D?style=flat-square" alt="English, Simplified Chinese, and Japanese"></a>
+  <a href="https://github.com/yinyanfr/kindlegarten/actions/workflows/publish.yml"><img src="https://img.shields.io/github/actions/workflow/status/yinyanfr/kindlegarten/publish.yml?branch=main&amp;style=flat-square&amp;label=Publish" alt="Publish workflow status"></a>
+  <a href="https://github.com/yinyanfr/kindlegarten/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-936A23?style=flat-square" alt="MIT license"></a>
+</p>
+
+<p align="center">
+  <a href="#installation">Installation</a> ·
+  <a href="https://github.com/yinyanfr/kindlegarten/blob/main/CHANGELOG.md">Changelog</a> ·
+  <a href="https://github.com/yinyanfr/kindlegarten/blob/main/README.zh-CN.md">简体中文</a>
+</p>
+
+> [!TIP]
 > **Scope of use**
 >
-> Use this project only to back up Kindle books you have legally purchased from Amazon and comics you have legally purchased from Comipo.
+> Use this project only to back up Kindle books you have legally purchased from Amazon and books or comics you have legally purchased from Comipo or DLsite.
 
-Download books from your Amazon Kindle library and save them locally as EPUB or CBZ. kindlegarten downloads the Kindle for iPad edition and preserves the color illustrations Amazon supplies for that edition.
+Back up purchased Kindle books, Comipo comics and supported DLsite ebooks and comics. For Kindle, Kindlegarten downloads the iPad edition and preserves the color illustrations Amazon supplies for that edition.
 
 - Automatically exports text-based books as EPUB and fixed-layout comics and magazines as CBZ when their pages can be extracted as images.
 - Names output files after the book title, replaces characters disallowed in filenames, and shortens long titles. One progress bar tracks the entire download.
-- Supports Amazon Japan and Amazon US and saves your sign-in locally for future downloads.
+- Keeps a separate local sign-in for each Kindle store.
 
 Comipo comics are saved as CBZ. A series download exports the purchased volumes in volume order to a folder named after the series.
+
+## Desktop app
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/yinyanfr/kindlegarten/main/docs/media/bookshelf-en-dark.webp">
+    <img src="https://raw.githubusercontent.com/yinyanfr/kindlegarten/main/docs/media/bookshelf-en-light.webp" width="960" alt="Kindlegarten desktop bookshelf with book covers, search, and format controls">
+  </picture>
+  <br>
+  <sub>Sample bookshelf with covers from <a href="https://standardebooks.org/ebooks">Standard Ebooks</a>.</sub>
+</p>
+
+Download the macOS Apple Silicon app, Windows x64 portable ZIP or Linux x86_64 AppImage from [GitHub Releases](https://github.com/yinyanfr/kindlegarten/releases). You can also install and launch the desktop app from Python.
+
+```sh
+python -m pip install 'kindlegarten[gui]'
+kindlegarten-gui
+```
+
+See the [desktop build guide](https://github.com/yinyanfr/kindlegarten/blob/main/DESKTOP_BUILD.md) for platform requirements and source builds. Kindle exports use your installed Calibre.
+
+Choose **Kindle**, **Comipo** or **DLsite** in the bookshelf. For Kindle, choose your store in the second menu. If you need to sign in, select **Sign in** in the center of the bookshelf. The account icon opens the account details and sign-out controls. In the sign-in window, use the provider's browser page or select **Paste credentials** for manual import instructions.
+
+The bookshelf opens from its local cache and checks for changes in the background. Use the filter icon beside search to sort books and series together by title or purchase date. Purchase date defaults to newest first and uses the latest purchased volume for a series. Hover over a cover to see its action, then click to open the series or download the book. Use the selection modifier keys and **Download selected** for bulk downloads.
+
+Choose the destination folder and format before downloading. **Settings** controls proxy, language and appearance. The app supports English, Simplified Chinese and Japanese, with light, dark and system appearance options. **About** displays the installed version and checks for a stable GitHub release.
+
+## CLI library and formats
+
+```sh
+kindlegarten help
+kindlegarten help series
+kindlegarten library
+kindlegarten library --source dlsite
+kindlegarten library --source amazon --region us
+kindlegarten series SERIES_ID --source amazon --region jp --format epub --output ./books
+kindlegarten work BJ123456 --source dlsite --format pdf
+```
+
+`library` groups purchased books by verified series and displays series and book IDs. It defaults to Kindle Japan. `work` and `series` default to Comipo and accept `--source amazon|comipo|dlsite`.
+
+The desktop app and `download`, `work` and `series` share the same export formats.
+
+| Content | Auto | Available formats |
+| --- | --- | --- |
+| Text ebook | EPUB | EPUB or PDF using Calibre |
+| Image-only comic or magazine | CBZ | CBZ, ZIP, fixed-layout EPUB or PDF |
+| Book supplied only as PDF | PDF | PDF |
+
+Pass `--format auto|epub|pdf|cbz|zip` to select a CLI format. A single-book `--output` filename supplies the format when `--format` is omitted. An explicit format must match that filename's extension. For a series, `--output` selects the parent directory. CBZ and ZIP use the same comic page archive.
+
+The CLI follows the system language and falls back to English. Set `KINDLEGARTEN_LANGUAGE` to `en`, `zh` or `ja` to choose a language explicitly.
 
 ## Installation
 
@@ -27,12 +99,13 @@ On Windows, use `py -3 -m pip install kindlegarten`. If your Python installation
 
 ## Login methods
 
-Running `kindlegarten login` with no options signs in to Amazon Japan. The default login method depends on the service.
+Running `kindlegarten login` with no options signs in to Amazon Japan. Kindlegarten uses a dedicated browser profile for each service or Kindle store. Browser sessions may be reused for later sign-ins.
 
 | Service | Default when `--method` is omitted | Explicit methods |
 | --- | --- | --- |
-| Amazon Kindle | Opens your system browser and prompts you to paste the final redirect URL. | `browser` captures the redirect automatically. `callback` prints the login URL and accepts the redirect in the terminal. |
-| Comipo (`--source comipo`) | Opens a Playwright browser. Sign in, return to Comipo Play, then press Enter in the terminal. | `browser` uses the default flow. `credentials` uses headless Chromium. `cookie` imports an existing Comipo Play session and needs no browser. |
+| Amazon Kindle | Opens a browser and captures the authorization redirect automatically. | `browser` uses the default flow. `callback` prints the login URL and accepts the redirect in the terminal. |
+| Comipo (`--source comipo`) | Opens a Playwright browser. Kindlegarten detects a successful sign-in automatically. | `browser` uses the default flow. `credentials` uses headless Chromium. `cookie` imports an existing Comipo Play session and needs no browser. |
+| DLsite (`--source dlsite`) | Opens a Playwright browser and validates the Play session. | `browser` uses the default flow. `cookie` accepts a cookie or a Play session JSON file. |
 
 Run `kindlegarten login --help` for the full list.
 
@@ -43,19 +116,16 @@ kindlegarten login --region jp
 kindlegarten d B0EXAMPLE0
 ```
 
-After you paste the redirect URL, the CLI registers a Kindle for iPad client. If it cannot open your system browser, it prints the sign-in URL. Over SSH, use `--method callback` to print the sign-in URL directly. Open it on another device, then paste the final redirect URL into the remote terminal. The terminal hides the pasted URL.
-
-To let Playwright detect the redirect automatically, install the browser extra and select `--method browser`. Complete Amazon's sign-in and any verification in the window the CLI opens.
+The CLI registers a Kindle for iPad client after you sign in. Over SSH, use `--method callback` to print the sign-in URL. Open it on another device and paste the final redirect URL into the remote terminal. The terminal hides the pasted URL.
 
 ```sh
-python3 -m pip install 'kindlegarten[browser]'
 kindlegarten login --region jp --method browser
 kindlegarten login --region jp --method callback
 ```
 
 The browser method uses Chrome or Playwright's Chromium. If neither is installed, run `python -m playwright install chromium` in the CLI's Python environment.
 
-`d` is shorthand for `download` and accepts the same options. Replace `B0EXAMPLE0` with the book's ten-character ASIN. You can also pass an Amazon product URL, which selects the region from its domain. A bare ASIN defaults to Amazon Japan. For an Amazon US account, pass `--region us` to both `login` and ASIN-based downloads.
+`d` is shorthand for `download` and accepts the same options. Replace `B0EXAMPLE0` with the book's ten-character ASIN. You can also pass an Amazon product URL, which selects the store from its domain. A bare ASIN defaults to Amazon Japan. Use `--region` for another Kindle store when signing in, listing books or downloading by ASIN. The choices are `jp`, `us`, `uk`, `de`, `fr`, `it`, `es`, `nl`, `ca`, `au`, `in`, `br` and `mx`.
 
 ```sh
 kindlegarten download "https://www.amazon.co.jp/dp/B0EXAMPLE0"
@@ -92,13 +162,29 @@ Use your own work ID or series ID. `w` is shorthand for `work`, and `s` is short
 
 A work is saved to `books/<work title>.cbz`. A series is saved under `books/<series name>/` with one CBZ per purchased volume. Re-running a series skips files previously saved for the same work ID. For a work, `--output` sets the CBZ filename. For a series, it sets the parent of the series folder. The `browser` and `credentials` methods use Chrome or Playwright's Chromium. If neither is available, run `python -m playwright install chromium` in the CLI's Python environment. Comipo downloads do not require Calibre or `kindlegarten setup`.
 
+## DLsite Play
+
+```sh
+python -m pip install 'kindlegarten[dlsite]'
+kindlegarten login --source dlsite
+kindlegarten library --source dlsite
+kindlegarten work BJ123456 --source dlsite
+kindlegarten series SERIES_ID --source dlsite
+```
+
+The library lists purchased ebooks and comics that are available through DLsite Play. Use the IDs shown by `library`. For manual sign-in, run `kindlegarten login --source dlsite --method cookie` and paste the Cookie header from the `/api/authorize` request to `play.dlsite.com`, or add `--session-file` to import a saved `dlsite-session.json`.
+
+## Proxy settings
+
+The desktop app lets you select system, direct or custom routing in **Settings**. For the CLI, set `KINDLEGARTEN_PROXY` to `system` (the default), `direct`, or an HTTP, HTTPS or SOCKS5 proxy URL such as `http://127.0.0.1:7890`.
+
 ## Releasing a version
 
-Update `__version__` in `kindlegarten/__init__.py` and add a matching `## X.Y.Z` section to `CHANGELOG.md`. A push to `main` publishes the version to PyPI and creates a GitHub Release with that changelog section. A version already available on both services is skipped. If publishing fails after the version tag is created, rerun the workflow for the tagged commit.
+Update `__version__` in `kindlegarten/__init__.py` and add a matching `## X.Y.Z` section to `CHANGELOG.md`. A push to `main` triggers tests and the three desktop builds. Once those builds pass, the workflow publishes the Python package through PyPI Trusted Publishing and attaches the desktop artifacts to the GitHub Release. If a release fails after the version tag is created, rerun the workflow for the commit referenced by that tag.
 
 ## Local data
 
-The pip-installed CLI stores sign-in state and export dependencies in a per-user directory.
+The desktop app and pip-installed CLI share a per-user data directory for sign-in state and export dependencies. The app also keeps a bookshelf cache for each provider or Kindle store, along with cached cover images.
 
 - macOS uses `~/Library/Application Support/kindlegarten/`.
 - Windows uses `%LOCALAPPDATA%\kindlegarten\`.

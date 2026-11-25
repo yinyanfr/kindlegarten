@@ -11,19 +11,25 @@ import subprocess
 import sys
 import unicodedata
 import warnings
-import webbrowser
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from time import monotonic
-from urllib.error import URLError
 from urllib.parse import parse_qs, urlsplit
-from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 from zipfile import BadZipFile, ZipFile
 
 
 SCRIPT = Path(__file__).resolve()
+if str(SCRIPT.parent.parent) not in sys.path:
+    sys.path.insert(0, str(SCRIPT.parent.parent))
+if socks_site := os.environ.get("KINDLEGARTEN_SOCKS_SITE"):
+    sys.path.append(socks_site)
+
+from kindlegarten.i18n import tr
+from kindlegarten.marketplaces import MARKETPLACES, REGIONS_BY_SITE
+from kindlegarten.network import amazon_client, http_client, worker_environment
+from kindlegarten.progress import PROGRESS, report, report_book
 COMMAND = "kindlegarten"
 VENV_PYTHON = Path("venv") / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 KINDL_SOURCE = (
@@ -39,10 +45,14 @@ KFX_SOURCE = (
     "338809c18e5f9bb721dc3570a64cf6f7add4a1711c8183e6179e90fcbadf3c1d",
 )
 PLUGINS = ("KFX Input.zip", "DeDRM.zip")
-REGIONS = {"amazon.co.jp": "jp", "amazon.com": "us"}
+SOURCES = ("amazon", "comipo", "dlsite")
 
 
 class KindleError(Exception):
+    pass
+
+
+class SignInRequired(KindleError):
     pass
 
 
@@ -79,7 +89,7 @@ def calibre_executable(name):
             candidate = directory / binary
             if candidate.is_file():
                 return candidate
-    raise KindleError(f"找不到 {binary}。请安装 Calibre，或用 KINDLE_CALIBRE_BIN 指定其可执行文件目录。")
+    raise KindleError(tr('{binary} was not found. Install Calibre or set KINDLE_CALIBRE_BIN to its executable directory.', binary=binary))
 
 
 @contextmanager
@@ -99,7 +109,7 @@ def project_lock():
         except OSError as error:
             if error.errno not in {errno.EACCES, errno.EAGAIN}:
                 raise
-            raise KindleError("另一个下载器进程正在运行，请结束后再试。") from None
+            raise KindleError(tr('Another Kindlegarten process is busy. Try again when it has finished.')) from None
         yield
 
 
@@ -111,13 +121,15 @@ def sha256(path):
 def fetch_verified(source, destination):
     url, digest = source
     try:
-        request = Request(url, headers={"User-Agent": "kindle-downloader/1.0"})
-        with urlopen(request, timeout=60) as response, destination.open("xb") as output:
-            shutil.copyfileobj(response, output)
-    except (URLError, TimeoutError) as error:
-        raise KindleError(f"无法下载依赖 {url}（{error}）。") from None
+        with http_client(redirects=True) as client, client.stream("GET", url) as response:
+            response.raise_for_status()
+            with destination.open("xb") as output:
+                for block in response.iter_bytes():
+                    output.write(block)
+    except Exception:
+        raise KindleError(tr("Could not download a setup dependency.")) from None
     if sha256(destination) != digest:
-        raise KindleError(f"依赖包的 SHA-256 与预期不符：{url}")
+        raise KindleError(tr('The dependency checksum did not match: {url}', url=url))
 
 
 def calibre_config_dir():
@@ -133,39 +145,50 @@ def calibre_config_dir():
 
 def configure_calibre(plugin_dir, config_dir):
     customize = calibre_executable("calibre-customize")
-    env = dict(os.environ, CALIBRE_CONFIG_DIRECTORY=str(config_dir))
+    env = worker_environment()
+    env["CALIBRE_CONFIG_DIRECTORY"] = str(config_dir)
     config_dir.mkdir()
     for plugin in PLUGINS:
         result = subprocess.run([customize, "--add-plugin", plugin_dir / plugin],
                                 env=env, capture_output=True)
         if result.returncode:
-            raise KindleError(f"Calibre 插件 {plugin} 加载失败。")
+            raise KindleError(tr('Calibre could not load the {plugin} plugin.', plugin=plugin))
     return env
 
 
 def setup_ready():
-    return all((RUNTIME / filename).is_file() for filename in (VENV_PYTHON, *PLUGINS))
+    plugins = all((RUNTIME / filename).is_file() for filename in PLUGINS)
+    return plugins and (getattr(sys, "frozen", False) or (RUNTIME / VENV_PYTHON).is_file())
+
+
+def setup_worker_runtime():
+    if getattr(sys, "frozen", False) or (RUNTIME / VENV_PYTHON).is_file():
+        return
+    base_python = os.environ.get("KINDLE_PYTHON", sys.executable)
+    with TemporaryDirectory(prefix=".setup-", dir=DATA) as temporary:
+        work = Path(temporary)
+        archive = work / "kindl.tar.gz"
+        fetch_verified(KINDL_SOURCE, archive)
+        subprocess.run([base_python, "-m", "venv", work / "venv"], check=True, env=worker_environment())
+        subprocess.run([work / VENV_PYTHON, "-m", "pip", "install", "--disable-pip-version-check",
+                        "--no-cache-dir", "--constraint", SCRIPT.with_name("constraints.txt"), archive],
+                       check=True, env=worker_environment())
+        RUNTIME.mkdir(mode=0o700, exist_ok=True)
+        (work / "venv").rename(RUNTIME / "venv")
 
 
 def setup(_args):
     calibre_executable("calibre-debug")
     calibre_executable("calibre-customize")
     if setup_ready():
-        print("依赖已安装。")
+        print(tr('Dependencies are already installed.'))
         return
 
-    base_python = os.environ.get("KINDLE_PYTHON", sys.executable)
+    setup_worker_runtime()
     with TemporaryDirectory(prefix=".setup-", dir=DATA) as temporary:
-        staging = Path(temporary) / "runtime"
+        staging = Path(temporary) / "plugins"
         staging.mkdir()
-        print("正在安装 kindl、DeDRM 和 KFX Input…", flush=True)
-        archive = staging / "kindl.tar.gz"
-        fetch_verified(KINDL_SOURCE, archive)
-        subprocess.run([base_python, "-m", "venv", staging / "venv"], check=True)
-        subprocess.run([staging / VENV_PYTHON, "-m", "pip", "install",
-                        "--disable-pip-version-check", "--no-cache-dir", "--constraint",
-                        SCRIPT.with_name("constraints.txt"), archive], check=True)
-        archive.unlink()
+        print(tr('Preparing kindl, DeDRM, and KFX Input…'), flush=True)
 
         dedrm_archive = staging / "DeDRM_tools.zip"
         fetch_verified(DEDRM_SOURCE, dedrm_archive)
@@ -181,15 +204,15 @@ def setup(_args):
             fetch_verified(KFX_SOURCE, kfx_archive)
 
         configure_calibre(staging, Path(temporary) / "calibre")
-        if RUNTIME.exists():
-            shutil.rmtree(RUNTIME)
-        staging.rename(RUNTIME)
-    print("依赖安装完成。")
+        RUNTIME.mkdir(mode=0o700, exist_ok=True)
+        for filename in PLUGINS:
+            (staging / filename).replace(RUNTIME / filename)
+    print(tr('Dependencies are ready.'))
 
 
 def require_setup():
     if not setup_ready():
-        raise KindleError(f"请先运行 {COMMAND} setup。")
+        raise KindleError(tr('Run {COMMAND} setup first.', COMMAND=COMMAND))
 
 
 def account_path(region):
@@ -203,22 +226,23 @@ def book_target(value):
         url = urlsplit(value)
         host = re.sub(r"^(www|smile)\.", "", url.hostname or "")
     except ValueError:
-        raise KindleError("请输入 10 位 ASIN 或 Amazon 商品链接。") from None
-    if url.scheme not in {"https", "http"} or host not in REGIONS:
-        raise KindleError("请输入 10 位 ASIN 或 amazon.co.jp / amazon.com 的完整商品链接。")
+        raise KindleError(tr('Enter a 10-character ASIN or an Amazon product link.')) from None
+    if url.scheme not in {"https", "http"} or host not in REGIONS_BY_SITE:
+        raise KindleError(tr('Enter a 10-character ASIN or a product link from a supported Amazon store.'))
     match = re.search(r"/(?:dp|gp/product|gp/aw/d)/([A-Z0-9]{10})(?:/|$)",
                       url.path, re.IGNORECASE | re.ASCII)
     if not match:
-        raise KindleError("商品链接里找不到 ASIN。")
-    return match[1].upper(), REGIONS[host]
+        raise KindleError(tr('The product link does not contain an ASIN.'))
+    return match[1].upper(), REGIONS_BY_SITE[host]
 
 
 def book_filename(title, asin, extension):
-    stem = unicodedata.normalize("NFC", title)
-    stem = re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f-\x9f\ud800-\udfff]+', "_", stem)
+    invalid = r'[<>:"/\\|?*\x00-\x1f\x7f-\x9f\ud800-\udfff]+'
+    fallback = re.sub(invalid, "_", str(asin)).strip(" ._") or "book"
+    stem = re.sub(invalid, "_", unicodedata.normalize("NFC", title))
     stem = re.sub(r"\s+", " ", stem).strip(" .")
     if not stem.strip(" _."):
-        stem = asin
+        stem = fallback
 
     device = stem.split(".", 1)[0].rstrip().upper()
     if re.fullmatch(r"CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|(?:COM|LPT)[1-9¹²³]", device):
@@ -226,7 +250,7 @@ def book_filename(title, asin, extension):
 
     max_bytes = 255 - len(extension.encode("utf-8"))
     stem = stem.encode("utf-8")[:max_bytes].decode("utf-8", errors="ignore").rstrip(" .")
-    return f"{stem or asin}{extension}"
+    return f"{stem or fallback}{extension}"
 
 
 def publish_book(source, destination):
@@ -241,116 +265,265 @@ def publish_book(source, destination):
 
 
 def start_login(args):
-    if args.session_file is not None and (args.source, args.method) != ("comipo", "cookie"):
-        raise KindleError("--session-file 和 --source comipo --method cookie 一起使用。")
-    if args.source == "comipo":
-        from kindlegarten.comipo import import_session, login
+    if args.source != "amazon":
+        from kindlegarten.comipo import COMIPO, DLSITE, import_session, login
 
+        site = COMIPO if args.source == "comipo" else DLSITE
+        if args.session_file is not None and args.method != "cookie":
+            raise KindleError(tr("--session-file requires --method cookie with Comipo or DLsite."))
         if args.method == "callback":
-            raise KindleError("Comipo Play 的登录状态保存在 Cookie 中。请使用 --method cookie、browser 或 credentials。")
+            raise KindleError(tr("Use --method cookie or browser for this service."))
+        if args.method == "credentials" and site is DLSITE:
+            raise KindleError(tr("Use --method cookie or browser for this service."))
         if args.method == "cookie":
-            import_session(DATA, COMMAND, args.session_file)
-        else:
+            if site is COMIPO:
+                import_session(DATA, COMMAND, args.session_file)
+            else:
+                import_session(DATA, COMMAND, args.session_file, site=site)
+        elif site is COMIPO:
             login(DATA, COMMAND, method=args.method or "browser")
+        else:
+            login(DATA, COMMAND, method="browser", site=site)
         return
+    if args.session_file is not None:
+        raise KindleError(tr("--session-file requires --method cookie with Comipo or DLsite."))
     if args.method in {"credentials", "cookie"}:
-        raise KindleError("Amazon 请使用 --method browser 或 --method callback。")
+        raise KindleError(tr('Use --method browser or --method callback for Amazon.'))
     require_setup()
     state = account_path(args.region)
-    if state.exists():
-        print(f"{args.region} 已有登录状态。更换账户前请先运行 {COMMAND} logout --region {args.region}。")
-        return
-    run_worker("_login", args.region, state, args.method or "default", sys.executable)
+    run_worker("_login", args.region, state, args.method or "browser", sys.executable)
 
 
 def logout(args):
-    if args.source == "comipo":
-        from kindlegarten.comipo import session_path
+    logout_source(args.source, args.region)
 
-        session_path(DATA).unlink(missing_ok=True)
-        print("已清除 Comipo 的本地登录状态。")
+
+def logout_source(source, region):
+    from kindlegarten.library import library_cache_path
+
+    library_cache_path(DATA, source, region).unlink(missing_ok=True)
+    if source != "amazon":
+        from kindlegarten.comipo import COMIPO, DLSITE, session_path
+
+        site = COMIPO if source == "comipo" else DLSITE
+        session_path(DATA, site).unlink(missing_ok=True)
+        shutil.rmtree(DATA / "browser" / source, ignore_errors=True)
+        print(tr("Saved session cleared for {site}.", site=site.name))
         return
-    state = account_path(args.region)
+    state = account_path(region)
     state.unlink(missing_ok=True)
     state.with_suffix(".json.tmp").unlink(missing_ok=True)
-    print(f"已清除 {args.region} 的本地登录状态。")
+    shutil.rmtree(DATA / "browser" / f"amazon-{region}", ignore_errors=True)
+    print(tr("Saved Amazon session cleared for {region}.", region=region))
 
 
-def run_worker(command, *args):
-    result = subprocess.run([RUNTIME / VENV_PYTHON, SCRIPT, command, *args])
+def run_worker(command, *args, capture=False, input_text=None):
+    if getattr(sys, "frozen", False):
+        # In a frozen app the Kindle dependency is bundled. Calibre still runs separately.
+        if not capture and input_text is None:
+            return worker(command, args)
+        if command == "_library":
+            from kindlegarten.library import amazon_library_json
+
+            return amazon_library_json(Path(args[0]))
+        if command == "_prepare_login":
+            from kindlegarten.amazon import prepare_login
+
+            return json.dumps(prepare_login(args[0]))
+        if command == "_validate_login":
+            from kindlegarten.amazon import saved_session_valid
+
+            return json.dumps(saved_session_valid(Path(args[0])))
+        if command == "_account":
+            from kindlegarten.amazon import saved_account
+
+            return json.dumps(saved_account(Path(args[0])))
+        if command == "_register_login":
+            from kindlegarten.amazon import register
+
+            payload = json.loads(input_text)
+            return register(Path(args[0]), payload["authorization"], payload["callback"])
+
+    env = worker_environment()
+    import importlib.util
+    socks = importlib.util.find_spec("socksio")
+    if socks and socks.origin:
+        env["KINDLEGARTEN_SOCKS_SITE"] = str(Path(socks.origin).parent.parent)
+    invocation = [RUNTIME / VENV_PYTHON, SCRIPT, command, *args]
+    if command == "_download" and PROGRESS.get():
+        env["KINDLEGARTEN_PROGRESS"] = "1"
+        with subprocess.Popen(invocation, env=env, stdout=subprocess.PIPE, text=True, encoding="utf-8") as process:
+            assert process.stdout is not None
+            for line in process.stdout:
+                try:
+                    event = json.loads(line)
+                    report(event["percent"], event["speed"])
+                except (ValueError, KeyError, TypeError):
+                    pass
+            if process.wait():
+                raise KindleError(tr("The Kindle download worker failed."))
+        return None
+    result = subprocess.run(invocation, env=env, input=input_text, text=True, encoding="utf-8",
+                            stdout=subprocess.PIPE if capture else None)
     if result.returncode:
-        raise SystemExit(result.returncode)
+        raise KindleError(tr("The Kindle worker failed. Check the previous error message."))
+    return result.stdout
 
 
-def download_comipo(args):
-    from kindlegarten.comipo import checked_target, download
+def read_library(source, region="jp"):
+    from kindlegarten.comipo import COMIPO, DLSITE, session
+    from kindlegarten.library import by_purchase, from_json
 
+    if source != "amazon":
+        site = COMIPO if source == "comipo" else DLSITE
+        with session(DATA, COMMAND, site) as client:
+            return by_purchase(client, dlsite=site is DLSITE)
+    account = account_path(region)
+    if not account.is_file():
+        raise SignInRequired(tr("Sign in to Amazon ({region}) before accessing the library.", region=region))
+    if not getattr(sys, "frozen", False) and not (RUNTIME / VENV_PYTHON).is_file():
+        raise KindleError(tr('Run {COMMAND} setup first.', COMMAND=COMMAND))
+    payload = json.loads(run_worker("_library", account, capture=True))
+    if payload is None:
+        raise SignInRequired(tr("Sign in to Amazon ({region}) before accessing the library.", region=region))
+    return from_json(payload)
+
+
+def print_library(args):
+    if args.region and args.source != "amazon":
+        raise KindleError(tr('--region is only available for Amazon.'))
+    snapshot = read_library(args.source, args.region or "jp")
+    for series in snapshot.series:
+        print(tr("{title} [{id}] · {count} purchased books", title=series.title, id=series.id, count=len(series.books)))
+        for book in series.books:
+            print(f"  {book.title} [{book.id}]")
+    if snapshot.books:
+        print(tr("Standalone books"))
+        for book in snapshot.books:
+            print(f"  {book.title} [{book.id}]")
+    if not snapshot.books and not snapshot.series:
+        print(tr("No purchased books found."))
+    if not snapshot.complete:
+        print(tr("The service did not return the complete library."), file=sys.stderr)
+
+
+def download_selection(args):
+    from kindlegarten.comipo import COMIPO, DLSITE, checked_target, download as play_download
+
+    books = getattr(args, "books", BOOKS)
+    if args.source == "amazon":
+        if args.kind == "series":
+            return download_amazon_series(args.identifier, args.region or "jp", args.output, args.format)
+        asin, region = book_target(args.identifier)
+        if args.region and region and args.region != region:
+            raise KindleError(tr('The product link and --region specify different Amazon stores.'))
+        region = args.region or region or "jp"
+        if getattr(args, "resume", False):
+            from kindlegarten.formats import already_saved
+
+            if already_saved(DATA, books, f"amazon:{region}:{asin}", args.format):
+                return None
+        return download_amazon(asin, region, args.output, args.format, directory=books)
+    if args.region:
+        raise KindleError(tr('--region is only available for Amazon.'))
+    site = DLSITE if args.source == "dlsite" else COMIPO
     target = checked_target(args.kind, args.identifier)
-    download(target, args.output, DATA, BOOKS, COMMAND)
+    return play_download(target, args.output, DATA, books, COMMAND, args.format, site=site,
+                         resume=getattr(args, "resume", False))
+
+
+def download_amazon_series(identifier, region, output, requested):
+    from kindlegarten.formats import already_saved
+
+    snapshot = read_library("amazon", region)
+    series = next((entry for entry in snapshot.series if entry.id == identifier), None)
+    if series is None:
+        raise KindleError(tr("No purchased volumes were found for series {id}.", id=identifier))
+    directory = (output or BOOKS).expanduser().absolute() / book_filename(series.title, identifier, "")
+    failures = []
+    for book in series.books:
+        report_book(book.title)
+        identity = f"amazon:{region}:{book.id}"
+        if path := already_saved(DATA, directory, identity, requested):
+            print(tr("Already saved: {path}", path=path), flush=True)
+            continue
+        try:
+            download_amazon(book.id, region, None, requested, directory=directory)
+        except (KindleError, OSError) as error:
+            failures.append(book.id)
+            print(f"{book.id}: {error}", file=sys.stderr)
+    if failures:
+        raise KindleError(tr("The following books could not be saved: {ids}.", ids=", ".join(failures)))
 
 
 def download_book(args):
-    from kindlegarten.comipo import download, parse_target
+    from kindlegarten.comipo import COMIPO, DLSITE, download as play_download, parse_target
 
     target = parse_target(args.book, args.source)
     if target:
         if args.region:
-            raise KindleError("--region 只适用于 Amazon。")
-        download(target, args.output, DATA, BOOKS, COMMAND)
-        return
-
+            raise KindleError(tr('--region is only available for Amazon.'))
+        host = urlsplit(args.book).hostname if args.book.startswith(("https://", "http://")) else None
+        site = DLSITE if args.source == "dlsite" or host in {"play.dlsite.com", "www.dlsite.com"} else COMIPO
+        return play_download(target, args.output, DATA, BOOKS, COMMAND, args.format, site=site)
     asin, site_region = book_target(args.book)
     if site_region and args.region and site_region != args.region:
-        raise KindleError("商品链接站点与 --region 不一致。")
-    region = args.region or site_region or "jp"
-    destination = args.output.expanduser().absolute() if args.output else None
-    requested_format = destination.suffix.lower()[1:] if destination else "auto"
-    if requested_format not in {"epub", "cbz"} and destination:
-        raise KindleError("--output 需要指定 .epub 或 .cbz 文件。")
+        raise KindleError(tr('The product link and --region specify different Amazon stores.'))
+    return download_amazon(asin, args.region or site_region or "jp", args.output, args.format)
+
+
+def download_amazon(asin, region, output, requested="auto", *, directory=None):
+    from kindlegarten.formats import convert, save_export, selected_format, unique_destination
+
+    destination = output.expanduser().absolute() if output else None
+    requested = selected_format(requested, destination)
+    requested_format = {"zip": "cbz", "pdf": "auto"}.get(requested, requested)
     if destination:
         require_new_output(destination)
     require_setup()
     account = account_path(region)
     if not account.is_file():
-        raise KindleError(f"请先运行 {COMMAND} login --region {region}。")
+        raise KindleError(tr('Run {COMMAND} login --region {region} first.', COMMAND=COMMAND, region=region))
     debug = calibre_executable("calibre-debug")
+    script = (Path(sys._MEIPASS) / "kindlegarten" / "cli.py") if getattr(sys, "frozen", False) else SCRIPT
 
     with TemporaryDirectory(prefix=".job-", dir=DATA) as temporary:
         staging = Path(temporary)
         env = configure_calibre(RUNTIME, staging / "calibre")
         encrypted = staging / "download" / f"{asin}.kfx-zip"
         decrypted = staging / "decrypted.kfx-zip"
-        print(f"正在请求 {region} 站 iPad 版 {asin}…", flush=True)
+        print(tr('Requesting the {region} Kindle for iPad edition of {asin}…', region=region, asin=asin), flush=True)
         run_worker("_download", account, asin, encrypted)
-        print("正在去除 DRM 并转换文件…", flush=True)
-        result = subprocess.run([debug, "-e", SCRIPT, "--", "_decrypt", account, encrypted, decrypted],
+        print(tr('Preparing the Kindle file for conversion…'), flush=True)
+        result = subprocess.run([debug, "-e", script, "--", "_decrypt", account, encrypted, decrypted],
                                 env=env, capture_output=True)
         if result.returncode or not decrypted.is_file():
-            raise KindleError("DeDRM 无法解密该书。请确认账户有访问权限，或检查该加密版本是否受支持。")
-        conversion = subprocess.run([debug, "-e", SCRIPT, "--", "_convert", decrypted, staging, requested_format],
+            raise KindleError(tr('DeDRM could not process this book. Check access and format compatibility.'))
+        conversion = subprocess.run([debug, "-e", script, "--", "_convert", decrypted, staging, requested_format],
                                     env=env, capture_output=True)
         messages = conversion.stdout + conversion.stderr
         if conversion.returncode:
             if b"CBZ_REQUIRES_IMAGE_PAGES" in messages:
-                raise KindleError("这本书含文字或使用了无法安全导出为 CBZ 的版式。请指定 .epub 输出。")
-            raise KindleError("KFX Input 无法转换这份 KFX。")
+                raise KindleError(tr('This book needs a text format. Select EPUB or PDF instead.'))
+            raise KindleError(tr('KFX Input could not convert this file.'))
         converted = [staging / name for name in ("book.epub", "book.cbz") if (staging / name).is_file()]
         if len(converted) != 1:
-            raise KindleError("KFX Input 没有生成一个有效的输出文件。")
-        source = converted[0]
+            raise KindleError(tr('KFX Input did not produce a valid output file.'))
+        title = json.loads((staging / "title.json").read_text(encoding="utf-8"))
+        identity = f"amazon:{region}:{asin}"
+        artifact = convert(converted[0], requested, title or asin, identity)
         if destination is None:
-            title = json.loads((staging / "title.json").read_text(encoding="utf-8"))
-            destination = BOOKS / book_filename(title, asin, source.suffix)
+            destination = unique_destination(directory or BOOKS, title, asin, artifact.suffix)
         require_new_output(destination)
-        publish_book(source, destination)
+        save_export(artifact, destination, DATA, identity, requested)
         if b"Missing font family names" in messages:
-            print("还有出版方字体无法映射，已保留 EPUB 的字体回退设置。", file=sys.stderr)
-    print(f"已保存 {destination}")
+            print(tr('Some publisher fonts could not be mapped. EPUB fallback fonts were retained.'), file=sys.stderr)
+    print(tr('Saved {destination}', destination=destination))
 
 
 def require_new_output(path):
     if path.exists() or path.is_symlink():
-        raise KindleError(f"输出文件已存在：{path}。请用 --output 指定新文件。")
+        raise KindleError(tr('The output already exists at {path}. Choose another file with --output.', path=path))
 
 
 def hidden_input(prompt):
@@ -359,7 +532,7 @@ def hidden_input(prompt):
         try:
             return getpass.getpass(prompt)
         except getpass.GetPassWarning:
-            raise KindleError("无法关闭终端回显。请通过交互式终端登录。") from None
+            raise KindleError(tr('Terminal echo could not be disabled. Sign in from an interactive terminal.')) from None
 
 
 def read_hidden_line(prompt):
@@ -392,61 +565,53 @@ def is_amazon_callback(url, site):
         return False
 
 
-def login(region, state, method="default", cli_python=None):
-    from kindl.auth import Account, AccountStore, new_device_identity, pkce_pair
-    from kindl.client import AmazonDeviceClient
-    from kindl.regions import get_region
+def login(region, state, method="browser", cli_python=None):
+    from kindlegarten.amazon import prepare_login, register, saved_session_valid
 
+    if state.is_file() and saved_session_valid(state):
+        print(tr('Amazon {region} is already signed in. Run {COMMAND} logout --region {region} to switch accounts.', region=region, COMMAND=COMMAND))
+        return
     if method != "browser" and not sys.stdin.isatty():
-        raise KindleError("请在交互式终端中运行登录命令。")
-    site = get_region(region).site
-    serial, pid = new_device_identity()
-    verifier, challenge = pkce_pair()
-    language = "ja_JP" if region == "jp" else "en_US"
-    url = AmazonDeviceClient.login_url(serial, challenge, language=language, region=region)
+        raise KindleError(tr('Run the login command in an interactive terminal.'))
+    authorization = prepare_login(region)
+    site, url = authorization["site"], authorization["url"]
 
     if method == "browser":
+        profile = state.parent / "browser" / f"amazon-{region}"
         result = subprocess.run(
-            [cli_python, "-m", "kindlegarten.cli", "_login_browser", site],
+            [cli_python, "-m", "kindlegarten.cli", "_login_browser", site, profile],
             cwd=SCRIPT.parent.parent, input=url, stdout=subprocess.PIPE, text=True,
         )
         if result.returncode:
             raise SystemExit(result.returncode)
         callback = result.stdout.strip()
         if not is_amazon_callback(callback, site):
-            raise KindleError("未收到有效的 Amazon 登录跳转。请重试或使用 --method callback。")
+            raise KindleError(tr('A valid Amazon redirect was not received. Try again or use --method callback.'))
     else:
-        if method == "callback" or not webbrowser.open(url):
-            print(f"请在浏览器打开此登录地址：\n{url}", flush=True)
-        print("登录完成后，复制浏览器地址栏里的完整跳转网址。", flush=True)
-        prompt = "粘贴登录后的完整网址并按回车（输入隐藏）："
+        print(tr('Open this sign-in URL in a browser:\n{url}', url=url), flush=True)
+        print(tr('After signing in, copy the full final URL from the browser address bar.'), flush=True)
+        prompt = tr('Paste the final URL and press Enter (input hidden): ')
         callback = read_hidden_line(prompt)
         while not is_amazon_callback(callback, site):
-            print(f"请重新复制 {site} 登录后地址栏里的完整网址。")
+            print(tr('Copy the full final URL from {site} again.', site=site))
             callback = read_hidden_line(prompt)
 
-    with AmazonDeviceClient(region=region) as client:
-        credentials = client.register(callback, verifier, serial, pid)
-    store = AccountStore()
-    store.add(Account("ipad", credentials))
-    store.save(state)
-    print(f"已为 {site} 保存本机登录状态。")
+    register(state, authorization, callback)
+    print(tr('Saved the local sign-in session for {site}.', site=site))
 
 
 def download(state, asin, destination):
     import httpx
     from kindl.auth import AccountStore
     from kindl.bundle import package_kfx_zip
-    from kindl.client import AmazonDeviceClient
-
     store = AccountStore.load(state)
     account = store.get("ipad")
     if account is None:
-        raise KindleError("本地登录状态不完整，请重新登录。")
+        raise KindleError(tr('The saved session is incomplete. Sign in again.'))
 
     folder = destination.parent
     folder.mkdir(parents=True, exist_ok=True)
-    with AmazonDeviceClient(account.credentials) as client:
+    with amazon_client(account.credentials) as client:
         client.refresh_device_credentials()
         store.save(state)
         if not account.credentials.account_secrets:
@@ -493,7 +658,7 @@ class DownloadProgress:
         self.received += size
         self.current_received += size
         now = monotonic()
-        if self.tty and now - self.updated >= 0.2:
+        if (self.tty or PROGRESS.get() or os.environ.get("KINDLEGARTEN_PROGRESS")) and now - self.updated >= 0.2:
             self.show(now)
 
     def show(self, now, finished=None):
@@ -507,11 +672,13 @@ class DownloadProgress:
             fraction = min(1, self.current_received / self.current_size) if self.current_size else 0
             ratio = (self.completed + fraction) / max(self.files, 1)
         percent = 100 if finished else min(99, int(ratio * 100))
+        if report(percent, speed + "/s"):
+            return
         approximate = "~" if self.total is None and not finished else ""
         filled = percent * 16 // 100
         bar = "#" * filled + "-" * (16 - filled)
-        status = "  完成" if finished else "  中断" if finished is False else ""
-        line = f"下载 [{bar}] {approximate}{percent:3d}%  {downloaded}  {speed}/s{status}"
+        status = tr('  Done') if finished else tr('  Interrupted') if finished is False else ""
+        line = tr('Downloading [{bar}] {approximate}{percent:3d}%  {downloaded}  {speed}/s{status}', bar=bar, approximate=approximate, percent=percent, downloaded=downloaded, speed=speed, status=status)
         if self.tty:
             print("\r" + line.ljust(self.width), end="\n" if finished is not None else "",
                   file=sys.stderr, flush=True)
@@ -580,7 +747,7 @@ def decrypt(state, source, destination):
     credentials = account["credentials"]
     serial = credentials["serial"]
     if not ion.is_serial_id(serial):
-        raise KindleError("本地登录状态里的设备序列号无效，请重新登录。")
+        raise KindleError(tr('The saved device serial is invalid. Sign in again.'))
     tokens = list(dict.fromkeys(
         value
         for token in credentials.get("account_secrets", [])
@@ -593,7 +760,7 @@ def decrypt(state, source, destination):
 
     plugin = find_plugin("DeDRM")
     if plugin is None:
-        raise KindleError("临时 Calibre 配置未加载 DeDRM。")
+        raise KindleError(tr('DeDRM was not loaded in the temporary Calibre profile.'))
     decrypted = Path(plugin.run(str(source)))
     shutil.copyfile(decrypted, destination)
 
@@ -652,7 +819,7 @@ def convert_book(source, output_dir, requested_format):
             images = [name for name in archive.namelist()
                       if Path(name).suffix.lower() in {".jpg", ".jpeg", ".png", ".gif"}]
             if len(images) != len(pages) or archive.testzip() is not None:
-                raise KindleError("CBZ 的图片页数与原书不符，或存档校验失败。")
+                raise KindleError(tr('The CBZ page count did not match or the archive was invalid.'))
         return
 
     output = output_dir / "book.epub"
@@ -670,20 +837,20 @@ def check_epub(path):
     try:
         with ZipFile(path) as epub:
             if epub.read("mimetype") != b"application/epub+zip" or epub.testzip() is not None:
-                raise KindleError("EPUB 校验失败。")
+                raise KindleError(tr('The EPUB could not be validated.'))
             container = ElementTree.fromstring(epub.read("META-INF/container.xml"))
             rootfile = container.find(".//{*}rootfile")
             if rootfile is None:
-                raise KindleError("EPUB 缺少目录清单。")
+                raise KindleError(tr('The EPUB package is missing.'))
             package = ElementTree.fromstring(epub.read(rootfile.attrib["full-path"]))
             if not package.findall(".//{*}spine/{*}itemref"):
-                raise KindleError("EPUB 缺少正文阅读顺序。")
+                raise KindleError(tr('The EPUB spine is missing.'))
     except (BadZipFile, KeyError, ElementTree.ParseError):
-        raise KindleError("生成的 EPUB 文件结构不完整。") from None
+        raise KindleError(tr('The generated EPUB is incomplete.')) from None
 
 
 def worker(command, args):
-    if command in {"_login", "_download"}:
+    if command in {"_login", "_download", "_library", "_prepare_login", "_register_login", "_validate_login", "_account"}:
         for key in list(os.environ):
             if key.startswith("KINDL_"):
                 del os.environ[key]
@@ -695,10 +862,32 @@ def worker(command, args):
         elif command == "_login_browser":
             from kindlegarten.browser import open_amazon_login
 
-            print(open_amazon_login(sys.stdin.read(), args[0], COMMAND))
+            site, profile = args
+            print(open_amazon_login(sys.stdin.read(), site, COMMAND, profile=Path(profile)))
         elif command == "_download":
             state, asin, destination = args
             download(Path(state), asin, Path(destination))
+        elif command == "_library":
+            from kindlegarten.library import amazon_library_json
+
+            print(amazon_library_json(Path(args[0])))
+        elif command == "_prepare_login":
+            from kindlegarten.amazon import prepare_login
+
+            print(json.dumps(prepare_login(args[0])))
+        elif command == "_validate_login":
+            from kindlegarten.amazon import saved_session_valid
+
+            print(json.dumps(saved_session_valid(Path(args[0]))))
+        elif command == "_account":
+            from kindlegarten.amazon import saved_account
+
+            print(json.dumps(saved_account(Path(args[0]))))
+        elif command == "_register_login":
+            from kindlegarten.amazon import register
+
+            payload = json.load(sys.stdin)
+            register(Path(args[0]), payload["authorization"], payload["callback"])
         elif command == "_decrypt":
             decrypt(*map(Path, args))
         else:
@@ -710,57 +899,74 @@ def worker(command, args):
         response = getattr(error, "response", None)
         code = getattr(response, "status_code", None)
         detail = f"HTTP {code}" if code is not None else type(error).__name__
-        raise KindleError(f"操作失败（{detail}）。请检查登录状态、网络及该书在对应站点的访问权限。") from None
+        raise KindleError(tr('The operation failed ({detail}). Check your session, connection, and access to the book.', detail=detail)) from None
 
 
 def main():
     os.umask(0o077)
-    if len(sys.argv) > 1 and sys.argv[1] in {"_login", "_login_browser", "_download", "_decrypt", "_convert"}:
+    if len(sys.argv) > 1 and sys.argv[1] in {"_login", "_login_browser", "_download", "_decrypt", "_convert", "_library", "_prepare_login", "_register_login", "_validate_login", "_account"}:
         worker(sys.argv[1], sys.argv[2:])
         return
     if sys.version_info < (3, 11):
-        raise KindleError("请使用 Python 3.11 或更新版。")
+        raise KindleError(tr('Use Python 3.11 or later.'))
 
     from kindlegarten import __version__
+    from kindlegarten.formats import FORMATS
 
-    parser = argparse.ArgumentParser(prog=COMMAND, description="下载 Kindle 和 Comipo 书库中的作品，导出 EPUB 或 CBZ。")
+    argparse._ = tr
+    argparse.ngettext = lambda one, many, count: tr(one if count == 1 else many)
+    parser = argparse.ArgumentParser(prog=COMMAND, description=tr('Back up purchased Kindle, Comipo, and DLsite books.'))
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    commands = parser.add_subparsers(title="命令")
-    commands.add_parser("setup", help="安装独立依赖").set_defaults(action=setup)
-    for name, action, description in (("login", start_login, "登录 Amazon 或 Comipo"),
-                                      ("logout", logout, "清除本地登录状态")):
+    commands = parser.add_subparsers(title=tr('Commands'))
+    commands.add_parser("setup", help=tr('Install Kindle export dependencies.')).set_defaults(action=setup)
+    for name, action, description in (("login", start_login, tr('Sign in to Amazon, Comipo, or DLsite.')),
+                                      ("logout", logout, tr('Clear a saved local session.'))):
         subparser = commands.add_parser(name, help=description)
-        subparser.add_argument("--source", choices=("amazon", "comipo"), default="amazon", help="服务，默认 amazon")
-        subparser.add_argument("--region", choices=("jp", "us"), default="jp", help="账户站点，默认 jp")
+        subparser.add_argument("--source", choices=SOURCES, default="amazon", help=tr('Source (default: amazon).'))
+        subparser.add_argument("--region", choices=MARKETPLACES, default="jp", help=tr('Amazon region (default: jp).'))
         if name == "login":
             subparser.add_argument(
                 "--method", choices=("browser", "callback", "credentials", "cookie"),
-                help="browser 打开浏览器，callback 粘贴 Amazon 跳转网址，"
-                     "credentials 输入 Comipo 凭据，cookie 导入 Comipo 会话",
+                help=tr('browser opens a browser, callback pastes an Amazon redirect, credentials signs in to Comipo, and cookie imports a Play session.'),
             )
             subparser.add_argument(
-                "--session-file", type=Path, metavar="PATH", help="使用 Comipo cookie 模式导入会话 JSON 文件",
+                "--session-file", type=Path, metavar="PATH", help=tr('Import a Play session JSON file with cookie mode.'),
             )
         subparser.set_defaults(action=action)
 
-    get = commands.add_parser("download", aliases=["d"], help="下载一本书或一个系列")
-    get.add_argument("book", metavar="ID_OR_URL", help="Amazon ASIN、Comipo work:ID、series:ID 或相应链接")
-    get.add_argument("--source", choices=("amazon", "comipo"), help="指定服务，省略时从 ID 或链接识别")
-    get.add_argument("--region", choices=("jp", "us"), help="账户站点，纯 ASIN 默认 jp")
+    get = commands.add_parser("download", aliases=["d"], help=tr('Download a book or series.'))
+    get.add_argument("book", metavar="ID_OR_URL", help=tr('Amazon ASIN, Play work:ID or series:ID, or a supported link.'))
+    get.add_argument("--source", choices=SOURCES, help=tr('Source (auto-detected from the ID or link when omitted).'))
+    get.add_argument("--region", choices=MARKETPLACES, help=tr('Amazon region (bare ASINs default to jp).'))
     get.add_argument("-o", "--output", type=Path, metavar="PATH",
-                     help="单本指定 .epub 或 .cbz，Comipo 系列指定父目录，默认 books/")
+                     help=tr('Output file for a single book or parent directory for a series.'))
+    get.add_argument("--format", choices=FORMATS, default="auto", help=tr("Select the output format."))
     get.set_defaults(action=download_book)
 
     for kind, alias, description, output_help in (
-        ("work", "w", "下载一本 Comipo 漫画", "指定 CBZ 文件，默认保存到 books/"),
-        ("series", "s", "下载 Comipo 系列的已购漫画", "指定系列文件夹的上级目录，默认 books/"),
+        ("work", "w", tr('Download an individual book.'), tr('Output filename (default directory: books/).')),
+        ("series", "s", tr('Download the purchased volumes of a series.'), tr('Parent directory for the series (default: books/).')),
     ):
         subparser = commands.add_parser(kind, aliases=[alias], help=description)
-        subparser.add_argument("identifier", metavar="ID", help=f"Comipo {kind} ID")
+        subparser.add_argument("identifier", metavar="ID",
+                               help=tr("Series ID.") if kind == "series" else tr("Book ID or ASIN."))
         subparser.add_argument("-o", "--output", type=Path, metavar="PATH", help=output_help)
-        subparser.set_defaults(kind=kind, action=download_comipo)
+        subparser.add_argument("--source", choices=SOURCES, default="comipo", help=tr("Select the book source."))
+        subparser.add_argument("--region", choices=MARKETPLACES, help=tr("Select the Amazon region."))
+        subparser.add_argument("--format", choices=FORMATS, default="auto", help=tr("Select the output format."))
+        subparser.set_defaults(kind=kind, action=download_selection)
 
+    library = commands.add_parser("library", help=tr("List purchased books and series."))
+    library.add_argument("--source", choices=SOURCES, default="amazon", help=tr("Select the book source."))
+    library.add_argument("--region", choices=MARKETPLACES, help=tr("Select the Amazon region."))
+    library.set_defaults(action=print_library)
+
+    help_parser = commands.add_parser("help", help=tr("Show command help."))
+    help_parser.add_argument("command", nargs="?", choices=tuple(commands.choices), help=tr("Command or alias."))
     args = parser.parse_args()
+    if "command" in vars(args):
+        (commands.choices[args.command] if args.command else parser).print_help()
+        return
     if not hasattr(args, "action"):
         parser.print_help()
         return
@@ -773,7 +979,7 @@ def main():
         args.action(args)
 
 
-def entrypoint(checkout=None):
+def initialize(checkout=None):
     global BOOKS, COMMAND, DATA, RUNTIME
 
     COMMAND = "python kindle.py" if checkout else "kindlegarten"
@@ -782,19 +988,26 @@ def entrypoint(checkout=None):
     DATA = Path(data_override).expanduser().resolve() if data_override else default_data
     RUNTIME = DATA / "runtime"
     BOOKS = (checkout or Path.cwd()) / "books"
+
+
+def entrypoint(checkout=None):
+    initialize(checkout)
     try:
         main()
     except KindleError as error:
         print(error, file=sys.stderr)
         return 1
     except (KeyboardInterrupt, EOFError):
-        print("已取消。", file=sys.stderr)
+        print(tr('Cancelled.'), file=sys.stderr)
         return 130
     except subprocess.CalledProcessError:
-        print("安装 Python 依赖失败，请检查 Python 安装及网络。", file=sys.stderr)
+        print(tr('Python dependencies could not be installed. Check Python and the connection.'), file=sys.stderr)
         return 1
     except OSError as error:
-        print(f"操作失败：{error}", file=sys.stderr)
+        print(tr('The operation failed: {error}', error=error), file=sys.stderr)
+        return 1
+    except ValueError:
+        print(tr("The service returned an unrecognized book response."), file=sys.stderr)
         return 1
     return 0
 

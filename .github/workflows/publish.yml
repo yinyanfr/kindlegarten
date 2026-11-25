@@ -37,15 +37,15 @@ jobs:
       - name: Build and validate the distributions
         if: steps.plan.outputs.upload_pypi == 'true'
         run: |
+          python -m pip install . build twine
           python -m unittest discover -s tests
-          python -m pip install build twine
           python -m build
           python -m twine check --strict dist/*
       - name: Install and check the CLI
         if: steps.plan.outputs.upload_pypi == 'true'
         run: |
           python -m venv "$RUNNER_TEMP/pypi-smoke"
-          "$RUNNER_TEMP/pypi-smoke/bin/python" -m pip install --no-index dist/*.whl
+          "$RUNNER_TEMP/pypi-smoke/bin/python" -m pip install dist/*.whl
           "$RUNNER_TEMP/pypi-smoke/bin/kindlegarten" --version
           "$RUNNER_TEMP/pypi-smoke/bin/kindlegarten" download --help
           "$RUNNER_TEMP/pypi-smoke/bin/kindlegarten" w --help
@@ -63,9 +63,18 @@ jobs:
           path: release-notes.md
           if-no-files-found: error
 
-  tag:
+  desktop:
     needs: build
-    if: needs.build.outputs.upload_pypi == 'true'
+    if: needs.build.outputs.release_github == 'true'
+    uses: ./.github/workflows/desktop.yml
+
+  tag:
+    needs: [build, desktop]
+    if: >-
+      !cancelled() &&
+      needs.build.result == 'success' &&
+      needs.build.outputs.upload_pypi == 'true' &&
+      (needs.desktop.result == 'success' || needs.build.outputs.release_github == 'false')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -101,11 +110,12 @@ jobs:
           skip-existing: true
 
   release:
-    needs: [build, publish]
+    needs: [build, desktop, publish]
     if: >-
       !cancelled() &&
       needs.build.result == 'success' &&
       needs.build.outputs.release_github == 'true' &&
+      needs.desktop.result == 'success' &&
       (needs.publish.result == 'success' || needs.build.outputs.upload_pypi == 'false')
     runs-on: ubuntu-latest
     permissions:
@@ -114,11 +124,23 @@ jobs:
       - uses: actions/download-artifact@v7
         with:
           name: release-notes
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: desktop/
       - name: Publish the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.build.outputs.tag }}
         run: |
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
-            --verify-tag --title "$TAG" --notes-file release-notes.md ||
-            [[ "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == "false" ]]
+          if draft=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft); then
+            if [[ "$draft" == "false" ]]; then
+              exit 0
+            fi
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --verify-tag --draft --title "$TAG" --notes-file release-notes.md
+          fi
+          gh release upload "$TAG" desktop/* --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false

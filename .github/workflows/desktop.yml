@@ -1,0 +1,52 @@
+name: Build native desktop apps
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Package ${{ matrix.artifact }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: windows-x64
+          - os: ubuntu-24.04
+            artifact: linux-x86_64
+          - os: macos-15
+            artifact: macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install build dependencies
+        run: python -m pip install ".[gui]" "pyinstaller>=6.12,<7"
+      - name: Test shared backend
+        run: python -m unittest discover -s tests
+      - name: Package Linux AppImage
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes desktop-file-utils squashfs-tools fonts-dejavu-core \
+            libgtk-3-0t64 libatomic1 libegl1 libgl1 libxcb-cursor0 libxkbcommon-x11-0 \
+            libxcb-icccm4 libxcb-keysyms1 libxcb-shape0
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/appimagetool" \
+            https://github.com/AppImage/appimagetool/releases/download/1.9.0/appimagetool-x86_64.AppImage
+          chmod +x "$RUNNER_TEMP/appimagetool"
+          python scripts/build_desktop.py --appimagetool "$RUNNER_TEMP/appimagetool"
+      - name: Package desktop application
+        if: runner.os != 'Linux'
+        run: python scripts/build_desktop.py
+      - uses: actions/upload-artifact@v6
+        with:
+          name: desktop-${{ matrix.artifact }}
+          path: dist-desktop/
+          if-no-files-found: error
