@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 - 2026-11-26
 
 - Fix desktop multi-selection so every selected book or series enters the download queue as its own task.
 - Add a right-hand download queue with per-task progress, speed, cancellation, retry, and a shortcut to open saved files' folder.
