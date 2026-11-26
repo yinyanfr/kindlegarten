@@ -30,7 +30,7 @@ If PowerShell blocks activation, install with `.\.venv\Scripts\python.exe -m pip
 
 ## 2. Sign in to Kindle
 
-Install Calibre for Kindle export, then run setup and sign in. [Download Calibre](https://calibre-ebook.com/download)
+Install Calibre for Kindle export, then run setup and sign in. If setup cannot find Calibre, use `kindlegarten setup --calibre-path PATH` with your install location. [Download Calibre](https://calibre-ebook.com/download)
 
 ```sh
 kindlegarten setup
@@ -57,20 +57,9 @@ kindlegarten download B0EXAMPLE0 --region jp
 
 The CLI prints the saved path. By default, the file goes into the `books/` folder under your current directory. A text ebook usually becomes an EPUB, and a supported image-only comic becomes a CBZ.
 
-## Comipo and DLsite
+## DLsite, including Comipo purchases
 
-After step 1, use the commands for your store. Replace `BJ123456` with a book or comic ID shown by `library`. Sign in in the browser window before running `library` and `work`.
-
-**Comipo**
-
-```sh
-python -m pip install "kindlegarten[comipo]"
-kindlegarten login --source comipo
-kindlegarten library --source comipo
-kindlegarten work BJ123456 --source comipo
-```
-
-**DLsite**
+After step 1, sign in using the viviON ID that owns your purchases. If you previously signed in to Comipo, sign in to DLsite with the same ID. Existing DLsite sessions can be reused. Complete browser sign-in before running `library` and `work`, and replace `BJ123456` with a book or comic ID from your library.
 
 ```sh
 python -m pip install "kindlegarten[dlsite]"

@@ -1,6 +1,8 @@
 """The native Kindlegarten desktop application."""
 
 import json
+import os
+import shutil
 import sys
 from dataclasses import dataclass, field
 from functools import partial
@@ -9,12 +11,12 @@ from threading import Event, Lock
 
 from PySide6.QtCore import (
     QCollator, QEvent, QFileSystemWatcher, QPersistentModelIndex, QRect, QRectF, QPointF, QLocale,
-    QObject, QRunnable, QSettings, QSize, Qt, QThreadPool, QTimer, QUrl, Signal,
+    QObject, QRunnable, QSettings, QSize, QStandardPaths, Qt, QThreadPool, QTimer, QUrl, Signal,
 )
 from PySide6.QtGui import QActionGroup, QColor, QDesktopServices, QIcon, QPainter, QPainterPath, QPalette, QPen, QPixmap, QPolygonF, QTextLayout
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout,
-    QLabel, QLineEdit, QListView, QListWidget, QListWidgetItem, QMainWindow, QMenu, QPlainTextEdit, QProgressBar, QPushButton, QScrollArea,
+    QLabel, QLineEdit, QListView, QListWidget, QListWidgetItem, QMainWindow, QMenu, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QScrollArea,
     QStackedWidget, QStyle, QStyledItemDelegate, QTextBrowser, QVBoxLayout, QWidget,
 )
 
@@ -30,14 +32,18 @@ from kindlegarten.local_downloads import folder_stamps, scan_downloads
 from kindlegarten.marketplaces import MARKETPLACES
 from kindlegarten.network import proxy_address, using_proxy
 from kindlegarten.progress import PROGRESS, STATUS, DownloadCancelled
-from kindlegarten.updates import REPOSITORY, check_for_update
+from kindlegarten.play_library import missing_legacy_books, volumes
+from kindlegarten.update_install import (
+    READY_VARIABLE, RESULT_VARIABLE, ManualInstall, can_install, installed_package, stage_update, start_installer,
+)
+from kindlegarten.updates import REPOSITORY, check_for_update, download_update
 
 ROLE = Qt.ItemDataRole.UserRole
 CAPTION_ROLE = ROLE + 1
 DOWNLOADED_ROLE = ROLE + 2
 COVER_LOADED_ROLE = ROLE + 3
 APP_ICON = Path(__file__).with_name("app-icon.png")
-PROVIDERS = {"amazon": "Kindle", "comipo": "Comipo", "dlsite": "DLsite"}
+PROVIDERS = {"amazon": "Kindle", "dlsite": "DLsite"}
 # Older builds saved a single index for both the provider and the Kindle store.
 LEGACY_PROVIDERS = (("amazon", "jp"), ("amazon", "us"), ("comipo", "jp"), ("dlsite", "jp"))
 SORT_ORDERS = {
@@ -48,7 +54,7 @@ SORT_ORDERS = {
 }
 GUIDE = (
     ("Sign in", "Open the provider’s browser and complete sign-in. If needed, choose Paste credentials."),
-    ("Paste credentials", "Amazon uses the final redirect URL. Comipo and DLsite use the Cookie request header from Play or a session JSON file."),
+    ("Paste credentials", "Amazon uses the final redirect URL. DLsite accepts the Cookie request header from Play or a session JSON file."),
     ("Your bookshelf", "Choose a source. For Kindle, choose your store. Open a series to select individual volumes, or select the whole series."),
     ("Export", "Choose a folder and a format. Auto picks EPUB for text and CBZ for comics. ZIP holds the same comic page archive as CBZ."),
     ("Downloads", "Use Download selected or add one ID per line with the plus button in Downloads. The top-right download icon toggles the panel. A check mark means the book or series is downloaded. A number shows how many volumes are saved in the series folder."),
@@ -123,8 +129,10 @@ GLYPHS = {
     "chevron": (((6, 9), (12, 15), (18, 9)),),
     "user": (),
     "refresh": (((20, 3), (20, 9), (14, 9)), ((4, 21), (4, 15), (10, 15))),
-    "settings": (((4, 7), (9, 7)), ((13, 7), (20, 7)), ((9, 4), (9, 10)),
-                 ((4, 17), (14, 17)), ((18, 17), (20, 17)), ((14, 14), (14, 20))),
+    "settings": (((10, 2), (14, 2), (15, 5), (17, 6), (20, 5), (22, 9), (20, 11),
+                  (20, 13), (22, 15), (20, 19), (17, 18), (15, 19), (14, 22), (10, 22),
+                  (9, 19), (7, 18), (4, 19), (2, 15), (4, 13), (4, 11), (2, 9), (4, 5),
+                  (7, 6), (9, 5), (10, 2)),),
 }
 
 
@@ -139,6 +147,8 @@ def paint_glyph(painter, name, color):
         path.moveTo(19.9, 15)
         path.cubicTo(17.5, 21.8, 8.3, 21.9, 4, 15)
         painter.drawPath(path)
+    if name == "settings":
+        painter.drawEllipse(QRectF(9, 9, 6, 6))
     if name == "user":
         painter.drawEllipse(QRectF(8, 3, 8, 8))
         path = QPainterPath(QPointF(5, 21))
@@ -318,12 +328,13 @@ class BookTile(QStyledItemDelegate):
         image = QRect(bounds.center().x() - 62, bounds.top() + 8, 124, 168)
         front = self.cover_rect(option.rect, book)
         if isinstance(book, Series) and len(book.books) > 1:
-            layers = min(len(book.books), 3)
+            sheet_colors = ("#93b7a5", "#b3cdc0")
+            layers = min(len(book.books), len(sheet_colors) + 1)
+            painter.setPen(QPen(palette.color(QPalette.ColorRole.Base), 1))
             for depth in range(layers - 1, 0, -1):
-                sheet = front.translated(7 * depth, -3 * depth)
-                painter.setPen(QPen(palette.color(QPalette.ColorRole.Base), 1))
-                painter.setBrush(palette.color(QPalette.ColorRole.Highlight).lighter(115 + depth * 16))
-                painter.drawRoundedRect(QRectF(sheet), 5, 5)
+                sheet = front.translated(4 * depth, -2 * depth)
+                painter.setBrush(QColor(sheet_colors[depth - 1]))
+                painter.drawRoundedRect(QRectF(sheet), 4, 4)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(palette.color(QPalette.ColorRole.Base))
             painter.drawRoundedRect(QRectF(front), 4, 4)
@@ -383,104 +394,319 @@ class BookTile(QStyledItemDelegate):
         painter.restore()
 
 
-class SettingsDialog(QDialog):
+class SettingsPage(QWidget):
+    sections = (("general", "General"), ("accounts", "Accounts"), ("downloads", "Downloads"),
+                ("network", "Network"), ("guide", "Guide"), ("about", "About & updates"))
+
     def __init__(self, window):
-        super().__init__(window)
+        super().__init__()
         self.window = window
-        self.setWindowTitle(tr("Settings"))
-        form = QFormLayout(self)
-        form.setContentsMargins(24, 22, 24, 22)
-        form.setSpacing(11)
-        self.locale = MenuField()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(17)
+        header = QHBoxLayout()
+        header.addWidget(icon_button("Back to bookshelf", "back", window.show_bookshelf))
+        header.addWidget(heading("Settings", "pageTitle"), 1)
+        layout.addLayout(header)
+        body = QHBoxLayout()
+        body.setSpacing(28)
+        sidebar = QWidget()
+        sidebar.setObjectName("settingsSidebar")
+        sidebar.setFixedWidth(168)
+        links = QVBoxLayout(sidebar)
+        links.setContentsMargins(0, 4, 0, 0)
+        links.setSpacing(5)
+        self.buttons = QButtonGroup(self)
+        self.content = QStackedWidget()
+        for index, (key, title) in enumerate(self.sections):
+            link = button(title, partial(self.select, key))
+            link.setCheckable(True)
+            link.setProperty("settingsLink", True)
+            self.buttons.addButton(link, index)
+            links.addWidget(link)
+            make = {"guide": window.guide, "about": window.about}.get(key)
+            if make is None:
+                make = getattr(self, key)
+            self.content.addWidget(make())
+        links.addStretch()
+        body.addWidget(sidebar)
+        body.addWidget(self.content, 1)
+        layout.addLayout(body, 1)
+        self.select("general")
+
+    def select(self, key):
+        index = next(i for i, (section, _) in enumerate(self.sections) if section == key)
+        self.section = key
+        self.content.setCurrentIndex(index)
+        self.buttons.button(index).setChecked(True)
+        if key == "accounts" and getattr(self.window, "settings_view", None) is self:
+            self.refresh_accounts()
+
+    def form(self, title):
+        page = QWidget()
+        page.setObjectName("settingsContent")
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(25, 19, 25, 20)
+        layout.setSpacing(16)
+        layout.addWidget(heading(title, "sectionTitle"))
+        fields = QWidget()
+        fields.setProperty("settingsGroup", True)
+        fields.setMaximumWidth(680)
+        form = QFormLayout(fields)
+        form.setContentsMargins(0, 0, 0, 0)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        form.setHorizontalSpacing(24)
+        form.setVerticalSpacing(15)
+        row = QHBoxLayout()
+        row.addWidget(fields, 1)
+        row.addStretch()
+        layout.addLayout(row)
+        layout.addStretch()
+        scroll = QScrollArea()
+        scroll.setObjectName("settingsScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(page)
+        return scroll, form
+
+    def general(self):
+        page, form = self.form("General")
+        language = MenuField()
         for code, name in (("", "System language"), ("zh", "简体中文"), ("en", "English"), ("ja", "日本語")):
-            self.locale.addItem(tr(name), code)
-        self.locale.setCurrentIndex(self.locale.findData(window.settings.value("language", "")))
-        self.theme = MenuField()
-        for key, name in (("system", "System appearance"), ("light", "Light"), ("dark", "Dark")):
-            self.theme.addItem(tr(name), key)
-        self.theme.setCurrentIndex(self.theme.findData(window.settings.value("theme", "system")))
-        self.mode = MenuField()
-        for key, name in (("system", "System proxy"), ("direct", "Direct connection"), ("custom", "Custom proxy")):
-            self.mode.addItem(tr(name), key)
-        self.mode.setCurrentIndex(self.mode.findData(window.settings.value("proxy_mode", "system")))
-        self.address = QLineEdit(window.settings.value("proxy_address", ""))
-        self.address.setPlaceholderText("http://127.0.0.1:7890")
-        self.username = QLineEdit(window.settings.value("proxy_username", ""))
-        self.password = QLineEdit(window.proxy_password)
-        self.password.setEchoMode(QLineEdit.EchoMode.Password)
-        self.calibre = QLineEdit(window.settings.value("calibre_path", ""))
+            language.addItem(tr(name), code)
+        language.setCurrentIndex(language.findData(self.window.settings.value("language", "")))
+        language.currentIndexChanged.connect(lambda: self.window.change_language(language.currentData()))
+        form.addRow(tr("Language"), language)
+
+        theme = MenuField()
+        for code, name in (("system", "System appearance"), ("light", "Light"), ("dark", "Dark")):
+            theme.addItem(tr(name), code)
+        theme.setCurrentIndex(theme.findData(self.window.settings.value("theme", "system")))
+        def change_theme():
+            self.window.settings.setValue("theme", theme.currentData())
+            self.window.apply_appearance()
+        theme.currentIndexChanged.connect(change_theme)
+        form.addRow(tr("Appearance"), theme)
+        return page
+
+    def downloads(self):
+        page, form = self.form("Downloads")
+        self.calibre = QLineEdit(self.window.settings.value("calibre_path", ""))
         self.calibre.setPlaceholderText(tr("Find Calibre automatically"))
-        path_row = QHBoxLayout()
-        path_row.addWidget(self.calibre, 1)
-        browse = icon_button("Choose Calibre folder", "folder", self.choose_calibre)
-        browse.setIcon(action_icon("folder", self.palette().color(QPalette.ColorRole.ButtonText)))
-        path_row.addWidget(browse)
-        self.dedrm = QCheckBox(tr("Remove Kindle DRM"))
-        self.dedrm.setChecked(window.settings.value("dedrm", True, type=bool))
-        self.status = QLabel()
-        self.status.setWordWrap(True)
-        form.addRow(tr("Language"), self.locale)
-        form.addRow(tr("Appearance"), self.theme)
-        form.addRow(tr("Network"), self.mode)
-        form.addRow(tr("Proxy address"), self.address)
-        form.addRow(tr("Proxy username"), self.username)
-        form.addRow(tr("Proxy password"), self.password)
-        form.addRow(tr("Calibre path"), path_row)
-        form.addRow(self.dedrm)
-        form.addRow(self.status)
-        form.addRow(button("Save settings", self.apply, primary=True))
-        self.resize(440, self.sizeHint().height())
+        row = QHBoxLayout()
+        row.addWidget(self.calibre, 1)
+        row.addWidget(icon_button("Choose Calibre folder", "folder", self.choose_calibre))
+        form.addRow(tr("Calibre path"), row)
+        self.calibre_status = heading("", "muted")
+        form.addRow(self.calibre_status)
+        actions = QHBoxLayout()
+        actions.addWidget(button("Save Calibre path", self.save_calibre, primary=True))
+        actions.addWidget(button("Download Calibre", lambda: open_link(cli.CALIBRE_URL)))
+        actions.addStretch()
+        form.addRow(actions)
+        remind = self.calibre_reminder = QCheckBox(tr("Remind me at startup if Calibre is missing"))
+        remind.setChecked(self.window.settings.value("calibre_reminder", True, type=bool))
+        remind.toggled.connect(lambda value: self.window.settings.setValue("calibre_reminder", value))
+        form.addRow(remind)
+        dedrm = QCheckBox(tr("Remove Kindle DRM"))
+        dedrm.setChecked(self.window.settings.value("dedrm", True, type=bool))
+        def change_drm(value):
+            self.window.settings.setValue("dedrm", value)
+            self.window.update_format()
+        dedrm.toggled.connect(change_drm)
+        form.addRow(dedrm)
+        return page
 
     def choose_calibre(self):
         path = QFileDialog.getExistingDirectory(self, tr("Choose Calibre folder"), self.calibre.text())
         if path:
             self.calibre.setText(path)
 
-    def apply(self):
+    def save_calibre(self):
+        path = self.calibre.text().strip()
+        path = str(Path(path).expanduser().absolute()) if path else ""
+        try:
+            with cli.using_calibre(path):
+                cli.check_calibre()
+        except cli.CalibreUnavailable as error:
+            if path:
+                self.calibre_status.setText(str(error))
+                return
+            self.calibre_status.setText(str(error))
+        else:
+            self.calibre_status.setText(tr("Calibre is available."))
+        self.window.settings.setValue("calibre_path", path)
+        self.calibre.setText(path)
+
+    def network(self):
+        page, form = self.form("Network")
+        settings = self.window.settings
+        self.mode = MenuField()
+        for code, name in (("system", "System proxy"), ("direct", "Direct connection"), ("custom", "Custom proxy")):
+            self.mode.addItem(tr(name), code)
+        self.mode.setCurrentIndex(self.mode.findData(settings.value("proxy_mode", "system")))
+        self.address = QLineEdit(settings.value("proxy_address", ""))
+        self.address.setPlaceholderText("http://127.0.0.1:7890")
+        self.username = QLineEdit(settings.value("proxy_username", ""))
+        self.password = QLineEdit(self.window.proxy_password)
+        self.password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.network_status = heading("", "muted")
+        form.addRow(tr("Network"), self.mode)
+        form.addRow(tr("Proxy address"), self.address)
+        form.addRow(tr("Proxy username"), self.username)
+        form.addRow(tr("Proxy password"), self.password)
+        form.addRow(self.network_status)
+        actions = QHBoxLayout()
+        actions.addWidget(button("Save settings", self.save_network, primary=True))
+        actions.addStretch()
+        form.addRow(actions)
+        def change_mode():
+            for field in (self.address, self.username, self.password):
+                field.setEnabled(self.mode.currentData() == "custom")
+        change_mode()
+        self.mode.currentIndexChanged.connect(change_mode)
+        return page
+
+    def save_network(self):
         from urllib.parse import quote, urlsplit
 
         mode = self.mode.currentData()
         address = self.address.text().strip()
+        username, password = self.username.text(), self.password.text()
         if mode == "custom":
-            if not address:
-                self.status.setText(tr("Enter a valid proxy address."))
-                return
             try:
-                url = urlsplit(address)
-                if url.username or url.password:
+                parts = urlsplit(address)
+                if parts.username or parts.password or parts.path not in {"", "/"} or parts.query or parts.fragment:
                     raise ValueError
-                username, password = self.username.text(), self.password.text()
                 auth = f"{quote(username, safe='')}:{quote(password, safe='')}@" if username else ""
-                with using_proxy(f"{url.scheme}://{auth}{url.netloc}"):
+                with using_proxy(f"{parts.scheme}://{auth}{parts.netloc}"):
                     proxy_address()
             except ValueError:
-                self.status.setText(tr("Enter a valid proxy address."))
+                self.network_status.setText(tr("Enter a valid proxy address."))
                 return
-        calibre = self.calibre.text().strip()
-        if calibre:
-            calibre = str(Path(calibre).expanduser().absolute())
-            try:
-                with cli.using_calibre(calibre):
-                    for command in ("calibre-debug", "calibre-customize", "ebook-convert"):
-                        cli.calibre_executable(command)
-            except cli.KindleError as error:
-                self.status.setText(str(error))
-                return
-        for key, value in (
-            ("language", self.locale.currentData()), ("theme", self.theme.currentData()),
-            ("proxy_mode", mode), ("proxy_address", address), ("proxy_username", self.username.text()),
-            ("calibre_path", calibre), ("dedrm", self.dedrm.isChecked()),
-        ):
+        for key, value in (("proxy_mode", mode), ("proxy_address", address), ("proxy_username", username)):
             self.window.settings.setValue(key, value)
-        self.window.proxy_password = self.password.text()
-        self.accept()
+        self.window.proxy_password = password
+        self.network_status.setText(tr("Settings saved."))
 
+    def accounts(self):
+        page, form = self.form("Accounts")
+        self.provider_menu = MenuField()
+        for code, label in PROVIDERS.items():
+            self.provider_menu.addItem(label, code)
+        self.market = MenuField()
+        for code, market in MARKETPLACES.items():
+            self.market.addItem(tr(market.name), code)
+        self.market_label = QLabel(tr("Kindle store"))
+        form.addRow(tr("Source"), self.provider_menu)
+        form.addRow(self.market_label, self.market)
+        self.account_status = heading("", "muted")
+        form.addRow(self.account_status)
+        actions = QHBoxLayout()
+        self.login_action = button("Sign in", lambda: self.window.open_login(self.account_selection()), primary=True)
+        self.reauthorize = button("Reauthorize", lambda: self.window.open_login(self.account_selection(), force=True))
+        self.import_action = button("Paste credentials", lambda: self.window.open_login(self.account_selection(), manual=True))
+        self.logout_action = button("Sign out", lambda: self.window.sign_out(*self.account_selection()[:2]))
+        self.logout_action.setProperty("danger", True)
+        for action in (self.login_action, self.reauthorize, self.import_action, self.logout_action):
+            actions.addWidget(action)
+        actions.addStretch()
+        form.addRow(actions)
+        self.compatibility = QWidget()
+        self.compatibility.setProperty("settingsGroup", True)
+        legacy = QVBoxLayout(self.compatibility)
+        legacy.setContentsMargins(0, 12, 0, 0)
+        legacy.addWidget(heading("Comipo compatibility", "sectionTitle"))
+        self.legacy_status = heading("", "muted")
+        legacy.addWidget(self.legacy_status)
+        self.legacy_check = button("Check for missing Comipo purchases", self.check_legacy)
+        legacy.addWidget(self.legacy_check, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.legacy_toggle = QCheckBox(tr("Include missing Comipo purchases"))
+        self.legacy_toggle.setChecked(self.window.settings.value("legacy_comipo", False, type=bool))
+        self.legacy_toggle.setEnabled(self.legacy_toggle.isChecked())
+        self.legacy_toggle.toggled.connect(self.window.set_legacy)
+        legacy.addWidget(self.legacy_toggle)
+        form.addRow(self.compatibility)
+        self.provider_menu.currentIndexChanged.connect(self.refresh_accounts)
+        self.market.currentIndexChanged.connect(self.refresh_accounts)
+        return page
+
+    def account_selection(self):
+        source = self.provider_menu.currentData()
+        region = self.market.currentData() if source == "amazon" else "jp"
+        name = PROVIDERS[source]
+        if source == "amazon":
+            name += f" · {tr(MARKETPLACES[region].name)}"
+        return source, region, name
+
+    def choose_account(self, source, region):
+        self.provider_menu.blockSignals(True)
+        self.market.blockSignals(True)
+        self.provider_menu.setCurrentIndex(self.provider_menu.findData(source))
+        self.market.setCurrentIndex(self.market.findData(region))
+        self.provider_menu.blockSignals(False)
+        self.market.blockSignals(False)
+        if self.section == "accounts":
+            self.refresh_accounts()
+
+    def refresh_accounts(self):
+        source, region, _ = selection = self.account_selection()
+        signed = self.window.saved_session_path(source, region).is_file()
+        self.market.setVisible(source == "amazon")
+        self.market_label.setVisible(source == "amazon")
+        self.login_action.setVisible(not signed)
+        self.reauthorize.setVisible(signed)
+        self.logout_action.setVisible(signed)
+        self.account_status.setText(tr("Checking account…") if signed else tr("Signed out."))
+        old = source == "dlsite" and session_path(cli.DATA, COMIPO).is_file()
+        self.compatibility.setVisible(old)
+        self.legacy_check.setEnabled(signed)
+        self.legacy_status.setText(tr("Sign in to DLsite with the same viviON ID as your saved Comipo account.") if old and not signed else "")
+        if not signed:
+            return
+
+        def current():
+            return self.window.settings_view is self and self.account_selection() == selection
+
+        def ready(profile):
+            if current():
+                status = tr("Signed in") if profile is not None else tr("This session has expired. Sign in again.")
+                if profile:
+                    status += "\n" + " · ".join(value for value in (profile.get("login"), profile.get("id")) if value)
+                self.account_status.setText(status)
+
+        self.window.run(partial(self.window.read_account, source, region), ready,
+                        lambda message: self.account_status.setText(message) if current() else None)
+
+    def check_legacy(self):
+        from kindlegarten.play_library import read_play_library
+
+        self.legacy_check.setEnabled(False)
+        self.legacy_status.setText(tr("Comparing purchased libraries…"))
+        def load():
+            with self.window.operation_lock, cli.project_lock():
+                return sum(book.legacy for book in volumes(read_play_library(cli.DATA, cli.COMMAND, legacy=True)).values())
+        def ready(count):
+            if self.window.settings_view is self:
+                self.legacy_check.setEnabled(True)
+                self.legacy_toggle.setEnabled(bool(count))
+                if not count and self.legacy_toggle.isChecked():
+                    self.legacy_toggle.setChecked(False)
+                self.legacy_status.setText(tr("{count} purchases are available through Comipo compatibility.", count=count)
+                                           if count else tr("No missing Comipo purchases were found."))
+        def failed(message):
+            if self.window.settings_view is self:
+                self.legacy_check.setEnabled(True)
+                self.legacy_status.setText(message)
+        self.window.run(load, ready, failed)
 
 class LoginDialog(QDialog):
-    def __init__(self, window):
+    def __init__(self, window, selection, *, force=False, manual=False):
         super().__init__(window)
         self.window = window
-        self.source, self.region, name = window.provider()
+        self.source, self.region, name = selection
+        self.force = force
         self.authorization = None
         self.setWindowTitle(tr("Sign in"))
         layout = QVBoxLayout(self)
@@ -506,7 +732,7 @@ class LoginDialog(QDialog):
         fields.addWidget(button("Verify and save", self.submit, primary=True))
         if self.source != "amazon":
             fields.addWidget(button("Import session file", self.import_file))
-        self.paste.hide()
+        self.paste.setVisible(manual)
         layout.addWidget(self.paste)
         self.status = heading("", "muted")
         layout.addWidget(self.status)
@@ -554,17 +780,16 @@ class LoginDialog(QDialog):
             with self.window.operation_lock, cli.project_lock():
                 if self.source == "amazon":
                     state = cli.account_path(self.region)
-                    if state.is_file():
+                    if state.is_file() and not self.force:
                         cli.setup_worker_runtime()
                         if json.loads(cli.run_worker("_validate_login", state, capture=True)):
                             return
                     authorization = self.challenge()
                     profile = cli.DATA / "browser" / f"amazon-{self.region}"
                     callback = open_amazon_login(authorization["url"], authorization["site"], cli.COMMAND,
-                                                 profile=profile)
+                                                 profile=None if self.force else profile)
                     return self.save_amazon(authorization, callback)
-                return login(cli.DATA, cli.COMMAND, site=COMIPO if self.source == "comipo" else DLSITE,
-                             interactive=False)
+                return login(cli.DATA, cli.COMMAND, site=DLSITE, interactive=False, force=self.force)
         self.call(sign_in)
 
     def import_file(self):
@@ -575,8 +800,7 @@ class LoginDialog(QDialog):
     def import_play(self, path, text):
         def save():
             with self.window.operation_lock, cli.project_lock():
-                import_session(cli.DATA, cli.COMMAND, path, site=COMIPO if self.source == "comipo" else DLSITE,
-                               pasted=text)
+                import_session(cli.DATA, cli.COMMAND, path, site=DLSITE, pasted=text)
         self.call(save)
 
     def submit(self):
@@ -594,40 +818,6 @@ class LoginDialog(QDialog):
             self.call(save)
         else:
             self.import_play(None, secret)
-
-
-class AccountDialog(QDialog):
-    def __init__(self, window, provider, profile, warning=None):
-        super().__init__(window)
-        self.setWindowTitle(tr("Account"))
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 22, 24, 22)
-        layout.setSpacing(14)
-        layout.addWidget(heading(provider, "pageTitle"))
-        layout.addWidget(heading(warning or "Signed in", "muted"))
-
-        details = QFormLayout()
-        details.setSpacing(9)
-        for key, title in (("login", "Login ID"), ("id", "Account ID")):
-            if value := profile.get(key):
-                label = heading("", "")
-                label.setText(value)
-                label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-                details.addRow(tr(title), label)
-        if details.rowCount():
-            layout.addLayout(details)
-
-        actions = QHBoxLayout()
-        actions.addStretch()
-        dismiss = button("Close", self.reject)
-        dismiss.setDefault(True)
-        actions.addWidget(dismiss)
-        logout = button("Sign out", self.accept)
-        logout.setAutoDefault(False)
-        logout.setProperty("danger", True)
-        actions.addWidget(logout)
-        layout.addLayout(actions)
-        self.setMinimumWidth(350)
 
 
 @dataclass(eq=False)
@@ -847,6 +1037,15 @@ class Window(QMainWindow):
         self.downloads = []
         self.download_rows = {}
         self.downloads_visible = False
+        self.release = None
+        self.update_stage = ""
+        self.update_percent = 0
+        self.update_error = ""
+        self.update_cancelled = None
+        self.update_job = None
+        self.update_file = None
+        self.update_timer = QTimer(self, interval=400)
+        self.update_timer.timeout.connect(self.maybe_install_update)
         self.enqueueing = set()
         self.pending_cards = set()
         self.bulk_starting = False
@@ -919,6 +1118,12 @@ class Window(QMainWindow):
         (self.pool if pool is None else pool).start(job, priority)
 
     def build(self, page=0):
+        saved = None
+        if hasattr(self, "grid"):
+            saved = (self.search.text(), self.location.text(), self.format.currentData(),
+                     self.grid.verticalScrollBar().value(),
+                     {(type(item.data(ROLE)), item.data(ROLE).id) for item in self.grid.selectedItems()},
+                     self.settings_view.section, self.settings_view.account_selection())
         language_token = LANGUAGE.set(self.locale())
         try:
             shell = QWidget()
@@ -932,14 +1137,6 @@ class Window(QMainWindow):
             nav.addWidget(brand_icon)
             nav.addWidget(heading("Kindlegarten", "brand"))
             nav.addWidget(heading(f"v{__version__}", "versionTag"), alignment=Qt.AlignmentFlag.AlignVCenter)
-            nav.addSpacing(14)
-            tabs = QButtonGroup(shell)
-            for index, title in enumerate(("Bookshelf", "Guide", "About")):
-                tab = button(title, lambda _, i=index: self.pages.setCurrentIndex(i))
-                tab.setProperty("tab", True)
-                tab.setCheckable(True)
-                tabs.addButton(tab, index)
-                nav.addWidget(tab)
             nav.addStretch()
             self.download_toggle = icon_button("Toggle downloads", "download", self.set_downloads_visible)
             self.download_toggle.setCheckable(True)
@@ -949,20 +1146,40 @@ class Window(QMainWindow):
             outer.addLayout(nav)
 
             self.pages = QStackedWidget()
-            self.pages.addWidget(self.bookshelf())
-            self.pages.addWidget(self.guide())
-            self.pages.addWidget(self.about())
-            self.pages.setCurrentIndex(page)
-            tabs.button(page).setChecked(True)
-            self.pages.currentChanged.connect(lambda index: tabs.button(index).setChecked(True))
-            body = QHBoxLayout()
+            home = QWidget()
+            body = QHBoxLayout(home)
+            body.setContentsMargins(0, 0, 0, 0)
             body.setSpacing(22)
-            body.addWidget(self.pages, 1)
+            body.addWidget(self.bookshelf(), 1)
             self.download_area = self.download_panel()
             self.download_area.setVisible(self.downloads_visible)
             body.addWidget(self.download_area)
-            outer.addLayout(body, 1)
+            self.pages.addWidget(home)
+            self.settings_view = SettingsPage(self)
+            self.pages.addWidget(self.settings_view)
+            self.pages.setCurrentIndex(page)
+            self.download_toggle.setVisible(page == 0)
+            outer.addWidget(self.pages, 1)
             self.setCentralWidget(shell)
+            if saved is None:
+                self.settings_view.choose_account(*self.provider()[:2])
+            if saved:
+                query, location, file_format, scroll, selection, section, account = saved
+                self.search.setText(query)
+                self.location.blockSignals(True)
+                self.location.setText(location)
+                self.location.blockSignals(False)
+                self.format.setCurrentIndex(self.format.findData(file_format))
+                for row in range(self.grid.count()):
+                    item = self.grid.item(row)
+                    entry = item.data(ROLE)
+                    item.setSelected((type(entry), entry.id) in selection)
+                scrollbar = self.grid.verticalScrollBar()
+                scrollbar.setValue(scroll)
+                QTimer.singleShot(0, partial(scrollbar.setValue, scroll))
+                self.settings_view.choose_account(*account[:2])
+                self.settings_view.select(section)
+            self.present_update()
             self.update_starting()
         finally:
             LANGUAGE.reset(language_token)
@@ -976,7 +1193,8 @@ class Window(QMainWindow):
         toolbar = QHBoxLayout()
         old_index = self.settings.value("provider", 0, type=int)
         old_source, old_region = LEGACY_PROVIDERS[old_index] if 0 <= old_index < len(LEGACY_PROVIDERS) else ("amazon", "jp")
-        source = self.settings.value("source", old_source)
+        source = cli.canonical_source(self.settings.value("source", old_source))
+        self.settings.setValue("source", source)
         region = self.settings.value("kindle_region", old_region)
 
         self.source = MenuField()
@@ -1043,7 +1261,7 @@ class Window(QMainWindow):
         sign_in_page = QWidget()
         sign_in_layout = QVBoxLayout(sign_in_page)
         sign_in_layout.setContentsMargins(0, 0, 0, 0)
-        self.shelf_login = button("Sign in", self.open_login, primary=True)
+        self.shelf_login = button("Sign in", self.open_account, primary=True)
         self.shelf_login.setMinimumWidth(120)
         sign_in_layout.addWidget(self.shelf_login, alignment=Qt.AlignmentFlag.AlignCenter)
         self.shelf_stack.addWidget(sign_in_page)
@@ -1143,22 +1361,33 @@ class Window(QMainWindow):
 
     def about(self):
         page = QWidget()
+        page.setObjectName("settingsContent")
         layout = QVBoxLayout(page)
-        layout.addStretch(1)
-        for widget in (
-            heading("Kindlegarten", "pageTitle"),
-            heading(tr("Version {version}", version=__version__), "muted"),
-            button("GitHub repository", lambda: open_link(REPOSITORY)),
-            button("Check for updates", self.check_updates, primary=True),
-        ):
-            layout.addWidget(widget, alignment=Qt.AlignmentFlag.AlignHCenter)
+        layout.setContentsMargins(25, 19, 25, 20)
+        layout.setSpacing(14)
+        layout.addWidget(heading("Kindlegarten", "sectionTitle"))
+        layout.addWidget(heading(tr("Version {version}", version=__version__), "muted"))
+        actions = QHBoxLayout()
+        self.check_update_button = button("Check for updates", self.check_updates, primary=True)
+        actions.addWidget(self.check_update_button)
+        actions.addWidget(button("GitHub repository", lambda: open_link(REPOSITORY)))
+        actions.addStretch()
+        layout.addLayout(actions)
         self.update_status = heading("", "muted")
-        layout.addWidget(self.update_status, alignment=Qt.AlignmentFlag.AlignHCenter)
-        self.update_url = ""
-        self.update_button = button("Open release", lambda: open_link(self.update_url))
-        self.update_button.hide()
-        layout.addWidget(self.update_button, alignment=Qt.AlignmentFlag.AlignHCenter)
-        layout.addStretch(2)
+        layout.addWidget(self.update_status)
+        self.update_progress = QProgressBar()
+        self.update_progress.setRange(0, 100)
+        layout.addWidget(self.update_progress)
+        actions = QHBoxLayout()
+        self.update_button = button("Download update", self.begin_update, primary=True)
+        self.cancel_update_button = button("Cancel", self.cancel_update)
+        self.update_page_button = button("Open release", lambda: open_link(self.release.page))
+        self.update_folder_button = button("Show downloaded package", self.show_update_folder)
+        for action in (self.update_button, self.cancel_update_button, self.update_folder_button, self.update_page_button):
+            actions.addWidget(action)
+        actions.addStretch()
+        layout.addLayout(actions)
+        layout.addStretch()
         return page
 
     def provider(self):
@@ -1183,7 +1412,7 @@ class Window(QMainWindow):
     def saved_session_path(self, source, region):
         if source == "amazon":
             return cli.account_path(region)
-        return session_path(cli.DATA, COMIPO if source == "comipo" else DLSITE)
+        return session_path(cli.DATA, DLSITE)
 
     def load_cached_library(self):
         source, region, _ = self.provider()
@@ -1205,8 +1434,9 @@ class Window(QMainWindow):
 
     def read_purchases(self, source, region):
         with self.operation_lock, cli.project_lock():
-            snapshot = cli.read_library(source, region)
-            if snapshot.complete and snapshot != cached_library(cli.DATA, source, region):
+            legacy = source == "dlsite" and self.legacy_enabled()
+            snapshot = cli.read_library(source, region, legacy_comipo=True) if legacy else cli.read_library(source, region)
+            if not legacy and snapshot.complete and snapshot != cached_library(cli.DATA, source, region):
                 try:
                     cache_library(cli.DATA, source, region, snapshot)
                 except OSError:
@@ -1260,6 +1490,8 @@ class Window(QMainWindow):
             self.schedule_download_scan()
             self.status.setText(tr("The service did not return the complete library.") if not snapshot.complete
                                 else tr("No purchased books found.") if not snapshot.series and not snapshot.books else "")
+            if source == "dlsite" and not self.legacy_enabled() and missing_legacy_books(cli.DATA, snapshot):
+                self.status.setText(tr("You can check for missing Comipo purchases in Settings → Accounts."))
             self.queue_covers()
 
         def rejected(message):
@@ -1670,88 +1902,114 @@ class Window(QMainWindow):
             self.download_rows[task].update_task()
             self.start_downloads()
 
-    def open_account(self):
-        source, region, provider = selection = self.provider()
-        site = COMIPO if source == "comipo" else DLSITE
-        state = self.saved_session_path(source, region)
-        if not state.is_file():
-            self.show_sign_in()
-            self.open_login()
-            return
-
-        account_button = self.account_button
-        account_button.setEnabled(False)
-
-        def load():
+    def read_account(self, source, region):
+        with self.operation_lock, cli.project_lock():
             if source == "amazon":
                 cli.setup_worker_runtime()
-                return json.loads(cli.run_worker("_account", state, capture=True))
-            return saved_account(cli.DATA, cli.COMMAND, site)
+                return json.loads(cli.run_worker("_account", self.saved_session_path(source, region), capture=True))
+            return saved_account(cli.DATA, cli.COMMAND, DLSITE)
 
-        def active():
-            if account_button is not self.account_button:
-                return False
-            account_button.setEnabled(True)
-            return self.provider() == selection
+    def open_account(self):
+        self.open_settings("accounts", account=self.provider())
 
-        def opened(profile, warning=None):
-            if not active():
-                return
-            if profile is None:
-                self.show_sign_in()
-                self.open_login()
-            elif AccountDialog(self, provider, profile, warning).exec() == QDialog.DialogCode.Accepted:
-                self.sign_out(source, region)
-
-        def rejected(reason):
-            opened({}, reason)
-
-        self.run(load, opened, rejected)
-
-    def open_login(self):
-        dialog = LoginDialog(self)
+    def open_login(self, selection, *, force=False, manual=False):
+        dialog = LoginDialog(self, selection, force=force, manual=manual)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.library_revision += 1
-            self.series = None
-            self.load_cached_library()
-            self.refresh()
+            source, region, _ = selection
+            if source == "dlsite":
+                self.settings.setValue("legacy_comipo", False)
+                self.settings_view.legacy_toggle.blockSignals(True)
+                self.settings_view.legacy_toggle.setChecked(False)
+                self.settings_view.legacy_toggle.setEnabled(False)
+                self.settings_view.legacy_toggle.blockSignals(False)
+            self.settings_view.refresh_accounts()
+            if self.provider()[:2] == (source, region):
+                self.library_revision += 1
+                self.series = None
+                self.load_cached_library()
+                self.refresh()
 
     def sign_out(self, source, region):
-        account_button = self.account_button
-        account_button.setEnabled(False)
+        page = self.settings_view
+        page.logout_action.setEnabled(False)
 
         def clear():
             with self.operation_lock, cli.project_lock():
                 cli.logout_source(source, region)
 
-        def active():
-            if account_button is self.account_button:
-                account_button.setEnabled(True)
-            return self.provider()[:2] == (source, region)
-
         def cleared(_):
-            if not active():
-                return
-            self.library_revision += 1
-            self.show_sign_in()
-            self.status.setText(tr("Signed out."))
+            if source == "dlsite":
+                self.settings.setValue("legacy_comipo", False)
+                self.settings_view.legacy_toggle.blockSignals(True)
+                self.settings_view.legacy_toggle.setChecked(False)
+                self.settings_view.legacy_toggle.setEnabled(False)
+                self.settings_view.legacy_toggle.blockSignals(False)
+            if self.settings_view is page:
+                page.logout_action.setEnabled(True)
+                page.refresh_accounts()
+            if self.provider()[:2] == (source, region):
+                self.library_revision += 1
+                self.show_sign_in()
+                self.status.setText(tr("Signed out."))
 
         def rejected(reason):
-            if active():
-                self.status.setText(reason)
+            if self.settings_view is page:
+                page.logout_action.setEnabled(True)
+                page.account_status.setText(reason)
 
         self.run(clear, cleared, rejected)
 
-    def open_settings(self):
-        if SettingsDialog(self).exec() == QDialog.DialogCode.Accepted:
-            LANGUAGE.set(self.locale())
-            query, location = self.search.text(), self.location.text()
-            output_format = self.format.currentData()
-            self.build(self.pages.currentIndex())
-            self.search.setText(query)
-            self.location.setText(location)
-            self.format.setCurrentIndex(self.format.findData(output_format))
-            self.apply_appearance()
+    def legacy_enabled(self):
+        return (self.settings.value("legacy_comipo", False, type=bool)
+                and session_path(cli.DATA, COMIPO).is_file()
+                and session_path(cli.DATA, DLSITE).is_file())
+
+    def set_legacy(self, value):
+        self.settings.setValue("legacy_comipo", value)
+        if self.provider()[0] == "dlsite":
+            self.library_revision += 1
+            self.refresh()
+
+    def open_settings(self, section=None, *, account=None):
+        self.pages.setCurrentIndex(1)
+        self.download_toggle.hide()
+        if account:
+            self.settings_view.choose_account(*account[:2])
+        if isinstance(section, str):
+            self.settings_view.select(section)
+
+    def show_bookshelf(self):
+        self.pages.setCurrentIndex(0)
+        self.download_toggle.show()
+
+    def change_language(self, language):
+        self.settings.setValue("language", language)
+        LANGUAGE.set(self.locale())
+        self.build(self.pages.currentIndex())
+        self.apply_appearance()
+
+    def check_calibre_at_startup(self):
+        if not self.settings.value("calibre_reminder", True, type=bool):
+            return
+        try:
+            with cli.using_calibre(self.settings.value("calibre_path", "")):
+                cli.check_calibre()
+        except cli.CalibreUnavailable:
+            dialog = QMessageBox(self)
+            dialog.setWindowTitle(tr("Calibre is missing"))
+            dialog.setText(tr("Install Calibre to convert Kindle books or specify its location in Settings."))
+            fetch = dialog.addButton(tr("Download Calibre"), QMessageBox.ButtonRole.ActionRole)
+            configure = dialog.addButton(tr("Set Calibre path"), QMessageBox.ButtonRole.ActionRole)
+            dialog.addButton(tr("Close"), QMessageBox.ButtonRole.RejectRole)
+            hide = QCheckBox(tr("Do not remind me next time"))
+            dialog.setCheckBox(hide)
+            dialog.exec()
+            if hide.isChecked():
+                self.settings_view.calibre_reminder.setChecked(False)
+            if dialog.clickedButton() is fetch:
+                open_link(cli.CALIBRE_URL)
+            elif dialog.clickedButton() is configure:
+                self.open_settings("downloads")
 
     def apply_appearance(self, *_):
         theme = self.settings.value("theme", "system")
@@ -1782,6 +2040,19 @@ class Window(QMainWindow):
                 background: {active}; color: {quiet}; border: 1px solid {border}; border-radius: 9px;
                 font-size: 11px; font-weight: 650; padding: 2px 7px;
             }}
+            QWidget#settingsSidebar {{ border-right: 1px solid {border}; }}
+            QScrollArea#settingsScroll {{ border: none; }}
+            QWidget#settingsContent {{ background: {panel}; border-radius: 14px; }}
+            QWidget#settingsContent QWidget[settingsGroup="true"],
+            QWidget#settingsContent QLabel, QWidget#settingsContent QCheckBox {{ background: transparent; }}
+            QWidget#settingsContent QComboBox {{ max-width: 300px; }}
+            QPushButton[settingsLink="true"] {{
+                text-align: left; border: 1px solid transparent; background: transparent; padding: 9px 12px;
+                margin-right: 10px;
+            }}
+            QPushButton[settingsLink="true"]:hover {{ background: {hover}; }}
+            QPushButton[settingsLink="true"]:checked {{ background: {active}; font-weight: 650; }}
+            QLabel#sectionTitle {{ font-size: 22px; font-weight: 680; }}
             QLabel#pageTitle {{ font-size: 35px; font-weight: 650; }}
             QLabel#muted {{ color: {quiet}; }}
             QLabel#downloadHeading {{ font-size: 23px; font-weight: 680; }}
@@ -1832,34 +2103,173 @@ class Window(QMainWindow):
             QProgressBar#downloadProgress::chunk {{ background: #588a75; border-radius: 3px; }}
         """)
 
+    def present_update(self):
+        state = self.update_stage
+        release = self.release
+        active = state in {"checking", "downloading", "cancelling", "waiting", "installing"}
+        self.check_update_button.setEnabled(not active)
+        detail = {"checking": "Checking for updates…", "current": "You are using the latest version.",
+                  "downloading": "Downloading update…", "cancelling": "Cancelling…",
+                  "waiting": "The update is ready. It will install after your book downloads finish.",
+                  "installing": "Restarting to install the update…",
+                  "manual": "Update downloaded. Install it manually from the saved package."}.get(state, "")
+        text = tr(detail) if detail else ""
+        if state == "available" and release:
+            text = tr("Version {version} is available.", version=release.tag)
+            if not getattr(sys, "frozen", False):
+                text += "\n" + tr('For a pip installation, run python -m pip install --upgrade "kindlegarten[gui]".')
+            if not release.asset:
+                text += "\n" + tr("A verifiable update package is not available.")
+        if self.update_error:
+            text += ("\n" if text else "") + self.update_error
+        self.update_status.setText(text)
+        self.update_progress.setVisible(state in {"downloading", "cancelling", "waiting", "installing"})
+        self.update_progress.setValue(self.update_percent)
+        self.update_button.setVisible(bool(release and release.asset and state == "available"))
+        self.update_button.setText(tr("Update and restart" if self.installation_for_update() else "Download update"))
+        self.cancel_update_button.setVisible(state in {"downloading", "waiting"})
+        self.update_page_button.setVisible(release is not None and not active)
+        self.update_folder_button.setVisible(self.update_file is not None and not active)
+
+    def installation_for_update(self):
+        try:
+            installation = installed_package()
+            if not can_install(installation):
+                return None
+            target = installation.target.resolve()
+            if any(path.resolve().is_relative_to(target) for path in self.protected_update_paths()):
+                return None
+            return installation
+        except (OSError, RuntimeError):
+            return None
+
+    def protected_update_paths(self):
+        yield cli.DATA
+        if self.location.text().strip():
+            yield Path(self.location.text().strip()).expanduser()
+        yield from (task.request.directory for task in self.downloads)
+
     def check_updates(self):
-        self.update_status.setText(tr("Checking for updates…"))
-        self.update_button.hide()
+        self.release = None
+        self.update_file = None
+        self.update_error = ""
+        self.update_stage = "checking"
+        self.present_update()
+
         def checked(release):
-            if not release:
-                self.update_status.setText(tr("You are using the latest version."))
-                return
-            version, url = release
-            self.update_status.setText(tr("Version {version} is available.", version=version))
-            self.update_url = url
-            self.update_button.show()
-        self.run(check_for_update, checked, lambda _: self.update_status.setText(tr("Could not check for updates.")))
+            self.release = release
+            self.update_stage = "available" if release else "current"
+            self.present_update()
+
+        def failed(_):
+            self.update_stage = ""
+            self.update_error = tr("Could not check for updates.")
+            self.present_update()
+
+        self.run(check_for_update, checked, failed)
+
+    def begin_update(self):
+        release = self.release
+        installation = self.installation_for_update()
+        downloads = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DownloadLocation)
+        directory = Path(downloads or Path.home() / "Downloads") / "Kindlegarten updates"
+        stop = self.update_cancelled = Event()
+        self.update_percent = 0
+        self.update_stage = "downloading"
+        self.update_error = ""
+        self.present_update()
+
+        def transfer():
+            path = download_update(release, directory, stop, PROGRESS.get())
+            job = None
+            warning = ""
+            if installation and not stop.is_set():
+                try:
+                    job = stage_update(path, installation, release)
+                except ManualInstall:
+                    pass
+                except (OSError, ValueError, RuntimeError):
+                    warning = tr("The update could not be prepared for automatic installation.")
+            return path, job, warning, installation
+
+        def progress(percent, _):
+            self.update_percent = percent
+            self.update_progress.setValue(percent)
+
+        def downloaded(result):
+            self.update_file, job, self.update_error, installation = result
+            self.update_cancelled = None
+            self.update_stage = "manual"
+            if job and not stop.is_set():
+                self.update_job = (job, installation)
+                self.update_stage = "waiting"
+                self.update_timer.start()
+            elif job:
+                shutil.rmtree(job.parent, ignore_errors=True)
+            self.present_update()
+
+        def failed(message=""):
+            self.update_cancelled = None
+            self.update_stage = "available"
+            self.update_error = message
+            self.present_update()
+
+        self.run(transfer, downloaded, failed, progress=progress,
+                 cancelled=lambda: failed(tr("Cancelled.")))
+
+    def cancel_update(self):
+        if self.update_cancelled is not None:
+            self.update_cancelled.set()
+            self.update_stage = "cancelling"
+        elif self.update_job:
+            job, _ = self.update_job
+            self.update_job = None
+            self.update_timer.stop()
+            shutil.rmtree(job.parent, ignore_errors=True)
+            self.update_stage = "manual"
+        self.present_update()
+
+    def show_update_folder(self):
+        if self.update_file:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.update_file.parent)))
+
+    def maybe_install_update(self):
+        if not self.update_job or self.unfinished_downloads() or QApplication.activeModalWidget():
+            return
+        self.update_timer.stop()
+        job, installation = self.update_job
+        self.update_job = None
+        if self.installation_for_update() != installation:
+            shutil.rmtree(job.parent, ignore_errors=True)
+            self.update_stage = "manual"
+            self.present_update()
+            return
+        try:
+            start_installer(job)
+        except OSError:
+            shutil.rmtree(job.parent, ignore_errors=True)
+            self.update_stage = "manual"
+            self.update_error = tr("The update could not be prepared for automatic installation.")
+            self.present_update()
+            return
+        self.update_stage = "installing"
+        self.present_update()
+        self.close()
 
     def closeEvent(self, event):
         if self.enqueueing or any(task.state in {"queued", "running", "cancelling"} for task in self.downloads):
             self.set_downloads_visible(True)
             self.show_download_notice("Wait for the current download to finish before closing.")
             event.ignore()
-        elif self.jobs:
+            return
+        if self.update_cancelled is not None or self.update_job is not None:
+            self.cancel_update()
+        if self.jobs:
             self.pool.clear()
-            event.accept()
-        else:
-            super().closeEvent(event)
+        super().closeEvent(event)
 
 
 def entrypoint():
-    import os
-
     os.umask(0o077)
     if getattr(sys, "frozen", False):
         for name in list(os.environ):
@@ -1868,13 +2278,17 @@ def entrypoint():
         os.environ["KINDL_PROFILE"] = "ios-ipad"
     cli.initialize()
     app = QApplication(sys.argv)
+    smoke = "--smoke-test" in sys.argv
+    if smoke:
+        QSettings.setDefaultFormat(QSettings.Format.IniFormat)
+        QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(cli.DATA))
     app.setApplicationName("Kindlegarten")
     app.setApplicationVersion(__version__)
     app.setWindowIcon(QIcon(str(APP_ICON)))
     window = Window()
     LANGUAGE.set(window.locale())
     window.show()
-    if "--smoke-test" in sys.argv:
+    if smoke:
         from kindl.client import AmazonDeviceClient
         from dlsite_async.play.epub import EpubReflowableSession
         from PIL import Image
@@ -1889,7 +2303,17 @@ def entrypoint():
         if flag:
             Path(flag).touch()
         return 0
+    if ready := os.environ.pop(READY_VARIABLE, ""):
+        try:
+            with Path(ready).open("x", encoding="utf-8") as marker:
+                marker.write(__version__)
+        except OSError:
+            return 1
+    if os.environ.pop(RESULT_VARIABLE, ""):
+        QTimer.singleShot(0, lambda: QMessageBox.warning(window, tr("Update failed"),
+                          tr("The updated app could not start. Your previous installation is available.")))
     QTimer.singleShot(0, lambda: window.refresh(silent=True))
+    QTimer.singleShot(0, window.check_calibre_at_startup)
     return app.exec()
 
 

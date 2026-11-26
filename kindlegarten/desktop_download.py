@@ -92,6 +92,12 @@ def prepare_download(request, workspace, cancelled, lock):
             elif not cli.setup_ready():
                 cli.setup(None)
         shutil.copyfile(state, workspace / state.name)
+        entries = request.entry.books if isinstance(request.entry, Series) else (request.entry,)
+        if request.source == "dlsite" and any(book.legacy for book in entries):
+            old = session_path(cli.DATA, COMIPO)
+            if not old.is_file():
+                raise cli.SignInRequired(tr("The saved Comipo session has expired. Sign in again."))
+            shutil.copyfile(old, workspace / old.name)
 
 
 def export_volumes(request):
@@ -119,7 +125,7 @@ def export_volumes(request):
                     kind="work", identifier=volume.id, source=request.source,
                     region=request.region if request.source == "amazon" else None,
                     format=request.format, output=None, books=directory, resume=True,
-                    dedrm=request.dedrm, title=volume.title,
+                    dedrm=request.dedrm, title=volume.title, legacy_comipo=volume.legacy,
                 ))
         except (cli.KindleError, OSError) as error:
             if len(volumes) == 1:

@@ -50,6 +50,8 @@ KFX_SOURCE = (
 )
 PLUGINS = ("KFX Input.zip", "DeDRM.zip")
 SOURCES = ("amazon", "comipo", "dlsite")
+CALIBRE_URL = "https://calibre-ebook.com/download"
+CALIBRE_TOOLS = ("calibre-debug", "calibre-customize", "ebook-convert")
 CALIBRE_PATH = ContextVar("calibre_path", default=None)
 ORIGINAL_KFX = "kfx-zip"
 
@@ -59,6 +61,10 @@ class KindleError(Exception):
 
 
 class SignInRequired(KindleError):
+    pass
+
+
+class CalibreUnavailable(KindleError):
     pass
 
 
@@ -95,9 +101,9 @@ def calibre_executable(name):
     override = CALIBRE_PATH.get() or os.environ.get("KINDLE_CALIBRE_BIN")
     if override:
         candidate = calibre_directory(override) / binary
-        if candidate.is_file():
+        if candidate.is_file() and os.access(candidate, os.X_OK):
             return candidate
-        raise KindleError(tr("No Calibre tool {binary} was found at {path}.", binary=binary, path=override))
+        detail = tr("No Calibre tool {binary} was found at {path}.", binary=binary, path=override)
     else:
         on_path = shutil.which(binary)
         if on_path:
@@ -112,9 +118,17 @@ def calibre_executable(name):
             directories = [Path("/opt/calibre"), Path("/usr/bin"), Path("/usr/local/bin")]
         for directory in directories:
             candidate = directory / binary
-            if candidate.is_file():
+            if candidate.is_file() and os.access(candidate, os.X_OK):
                 return candidate
-    raise KindleError(tr('{binary} was not found. Install Calibre or set KINDLE_CALIBRE_BIN to its executable directory.', binary=binary))
+        detail = tr("{binary} was not found.", binary=binary)
+    help_text = tr("Download Calibre from {url} or specify its location with --calibre-path or KINDLE_CALIBRE_BIN.",
+                   url=CALIBRE_URL)
+    raise CalibreUnavailable(f"{detail}\n{help_text}")
+
+
+def check_calibre():
+    for name in CALIBRE_TOOLS:
+        calibre_executable(name)
 
 
 @contextmanager
@@ -235,6 +249,8 @@ def setup(_args):
 
 
 def require_setup():
+    calibre_executable("calibre-debug")
+    calibre_executable("calibre-customize")
     if not setup_ready():
         raise KindleError(tr('Run {COMMAND} setup first.', COMMAND=COMMAND))
 
@@ -292,24 +308,15 @@ def publish_book(source, destination):
 
 def start_login(args):
     if args.source != "amazon":
-        from kindlegarten.comipo import COMIPO, DLSITE, import_session, login
-
-        site = COMIPO if args.source == "comipo" else DLSITE
+        from kindlegarten.comipo import DLSITE, import_session, login
         if args.session_file is not None and args.method != "cookie":
             raise KindleError(tr("--session-file requires --method cookie with Comipo or DLsite."))
         if args.method == "callback":
             raise KindleError(tr("Use --method cookie or browser for this service."))
-        if args.method == "credentials" and site is DLSITE:
-            raise KindleError(tr("Use --method cookie or browser for this service."))
         if args.method == "cookie":
-            if site is COMIPO:
-                import_session(DATA, COMMAND, args.session_file)
-            else:
-                import_session(DATA, COMMAND, args.session_file, site=site)
-        elif site is COMIPO:
-            login(DATA, COMMAND, method=args.method or "browser")
+            import_session(DATA, COMMAND, args.session_file, site=DLSITE)
         else:
-            login(DATA, COMMAND, method="browser", site=site)
+            login(DATA, COMMAND, method=args.method or "browser", site=DLSITE)
         return
     if args.session_file is not None:
         raise KindleError(tr("--session-file requires --method cookie with Comipo or DLsite."))
@@ -327,14 +334,16 @@ def logout(args):
 def logout_source(source, region):
     from kindlegarten.library import library_cache_path
 
+    source = canonical_source(source)
     library_cache_path(DATA, source, region).unlink(missing_ok=True)
     if source != "amazon":
         from kindlegarten.comipo import COMIPO, DLSITE, session_path
 
-        site = COMIPO if source == "comipo" else DLSITE
-        session_path(DATA, site).unlink(missing_ok=True)
-        shutil.rmtree(DATA / "browser" / source, ignore_errors=True)
-        print(tr("Saved session cleared for {site}.", site=site.name))
+        for site in (DLSITE, COMIPO):
+            session_path(DATA, site).unlink(missing_ok=True)
+            library_cache_path(DATA, site.name.lower(), None).unlink(missing_ok=True)
+            shutil.rmtree(DATA / "browser" / site.name.lower(), ignore_errors=True)
+        print(tr("Saved session cleared for {site}.", site=DLSITE.name))
         return
     state = account_path(region)
     state.unlink(missing_ok=True)
@@ -422,14 +431,17 @@ def run_worker(command, *args, capture=False, input_text=None):
     return result.stdout
 
 
-def read_library(source, region="jp"):
-    from kindlegarten.comipo import COMIPO, DLSITE, session
-    from kindlegarten.library import by_purchase, from_json
+def canonical_source(source):
+    return "dlsite" if source == "comipo" else source
+
+
+def read_library(source, region="jp", *, legacy_comipo=False):
+    from kindlegarten.library import from_json
 
     if source != "amazon":
-        site = COMIPO if source == "comipo" else DLSITE
-        with session(DATA, COMMAND, site) as client:
-            return by_purchase(client, dlsite=site is DLSITE)
+        from kindlegarten.play_library import read_play_library
+
+        return read_play_library(DATA, COMMAND, legacy=legacy_comipo)
     account = account_path(region)
     if not account.is_file():
         raise SignInRequired(tr("Sign in to Amazon ({region}) before accessing the library.", region=region))
@@ -444,7 +456,10 @@ def read_library(source, region="jp"):
 def print_library(args):
     if args.region and args.source != "amazon":
         raise KindleError(tr('--region is only available for Amazon.'))
-    snapshot = read_library(args.source, args.region or "jp")
+    source = canonical_source(args.source)
+    snapshot = (read_library(source, args.region or "jp", legacy_comipo=True)
+                if getattr(args, "legacy_comipo", False) and source == "dlsite"
+                else read_library(source, args.region or "jp"))
     for series in snapshot.series:
         print(tr("{title} [{id}] · {count} purchased books", title=series.title, id=series.id, count=len(series.books)))
         for book in series.books:
@@ -460,7 +475,7 @@ def print_library(args):
 
 
 def download_selection(args):
-    from kindlegarten.comipo import COMIPO, DLSITE, checked_target, download as play_download
+    from kindlegarten.comipo import checked_target
 
     books = getattr(args, "books", BOOKS)
     if args.source == "amazon":
@@ -481,10 +496,18 @@ def download_selection(args):
                                dedrm=dedrm, title=getattr(args, "title", ""))
     if args.region:
         raise KindleError(tr('--region is only available for Amazon.'))
-    site = DLSITE if args.source == "dlsite" else COMIPO
     target = checked_target(args.kind, args.identifier)
-    return play_download(target, args.output, DATA, books, COMMAND, args.format, site=site,
-                         resume=getattr(args, "resume", False))
+    return download_play(target, args, books)
+
+
+def download_play(target, args, books):
+    from kindlegarten.comipo import DLSITE, download
+    from kindlegarten.play_library import download_with_legacy
+
+    resume = getattr(args, "resume", False)
+    if getattr(args, "legacy_comipo", False):
+        return download_with_legacy(target, args.output, DATA, books, COMMAND, args.format, resume=resume)
+    return download(target, args.output, DATA, books, COMMAND, args.format, site=DLSITE, resume=resume)
 
 
 def download_amazon_series(identifier, region, output, requested, *, dedrm=True):
@@ -514,15 +537,13 @@ def download_amazon_series(identifier, region, output, requested, *, dedrm=True)
 
 
 def download_book(args):
-    from kindlegarten.comipo import COMIPO, DLSITE, download as play_download, parse_target
+    from kindlegarten.comipo import parse_target
 
     target = parse_target(args.book, args.source)
     if target:
         if args.region:
             raise KindleError(tr('--region is only available for Amazon.'))
-        host = urlsplit(args.book).hostname if args.book.startswith(("https://", "http://")) else None
-        site = DLSITE if args.source == "dlsite" or host in {"play.dlsite.com", "www.dlsite.com"} else COMIPO
-        return play_download(target, args.output, DATA, BOOKS, COMMAND, args.format, site=site)
+        return download_play(target, args, BOOKS)
     asin, site_region = book_target(args.book)
     if site_region and args.region and site_region != args.region:
         raise KindleError(tr('The product link and --region specify different Amazon stores.'))
@@ -1016,7 +1037,7 @@ def main():
     setup_parser = commands.add_parser("setup", help=tr('Install Kindle export dependencies.'))
     setup_parser.add_argument("--calibre-path", type=Path, metavar="PATH", help=tr("Use this Calibre installation."))
     setup_parser.set_defaults(action=setup)
-    for name, action, description in (("login", start_login, tr('Sign in to Amazon, Comipo, or DLsite.')),
+    for name, action, description in (("login", start_login, tr('Sign in to Amazon or DLsite.')),
                                       ("logout", logout, tr('Clear a saved local session.'))):
         subparser = commands.add_parser(name, help=description)
         subparser.add_argument("--source", choices=SOURCES, default="amazon", help=tr('Source (default: amazon).'))
@@ -1024,7 +1045,7 @@ def main():
         if name == "login":
             subparser.add_argument(
                 "--method", choices=("browser", "callback", "credentials", "cookie"),
-                help=tr('browser opens a browser, callback pastes an Amazon redirect, credentials signs in to Comipo, and cookie imports a Play session.'),
+                help=tr('browser opens a browser, callback pastes an Amazon redirect, credentials signs in with viviON ID, and cookie imports a Play session.'),
             )
             subparser.add_argument(
                 "--session-file", type=Path, metavar="PATH", help=tr('Import a Play session JSON file with cookie mode.'),
@@ -1049,7 +1070,7 @@ def main():
         subparser.add_argument("identifier", metavar="ID",
                                help=tr("Series ID.") if kind == "series" else tr("Book ID or ASIN."))
         subparser.add_argument("-o", "--output", type=Path, metavar="PATH", help=output_help)
-        subparser.add_argument("--source", choices=SOURCES, default="comipo", help=tr("Select the book source."))
+        subparser.add_argument("--source", choices=SOURCES, default="dlsite", help=tr("Select the book source."))
         subparser.add_argument("--region", choices=MARKETPLACES, help=tr("Select the Amazon region."))
         subparser.add_argument("--format", choices=FORMATS, default="auto", help=tr("Select the output format."))
         add_export_options(subparser)
@@ -1058,6 +1079,7 @@ def main():
     library = commands.add_parser("library", help=tr("List purchased books and series."))
     library.add_argument("--source", choices=SOURCES, default="amazon", help=tr("Select the book source."))
     library.add_argument("--region", choices=MARKETPLACES, help=tr("Select the Amazon region."))
+    add_legacy_comipo_option(library)
     library.set_defaults(action=print_library)
 
     help_parser = commands.add_parser("help", help=tr("Show command help."))
@@ -1070,6 +1092,10 @@ def main():
         parser.print_help()
         return
 
+    if hasattr(args, "source"):
+        args.source = canonical_source(args.source)
+        if args.source == "amazon" and getattr(args, "legacy_comipo", False):
+            raise KindleError(tr("Legacy Comipo compatibility is only available for DLsite."))
     with using_calibre(getattr(args, "calibre_path", None)), project_lock():
         for entry in DATA.iterdir():
             temporary_job = re.fullmatch(r"\.(?:setup|job)-[A-Za-z0-9_]{8}", entry.name)
@@ -1082,6 +1108,12 @@ def add_export_options(parser):
     parser.add_argument("--calibre-path", type=Path, metavar="PATH", help=tr("Use this Calibre installation."))
     parser.add_argument("--dedrm", action=argparse.BooleanOptionalAction, default=True,
                         help=tr("Remove Kindle DRM by default. Use --no-dedrm to save the original .kfx-zip."))
+    add_legacy_comipo_option(parser)
+
+
+def add_legacy_comipo_option(parser):
+    parser.add_argument("--legacy-comipo", action="store_true",
+                        help=tr("Include missing Comipo purchases from a verified matching account."))
 
 
 def initialize(checkout=None):

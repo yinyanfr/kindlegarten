@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.0 - 2026-11-26
+
+### Added
+
+- Open Settings from the toolbar gear. Manage accounts, downloads and network settings, or open the guide and About & updates. Returning to the bookshelf preserves the current search, selection, scroll position and download queue.
+- Check for stable desktop updates and download them through the configured proxy. Verify each package's size and SHA-256 before offering installation.
+- Update and restart eligible desktop installations after book downloads finish. Restore the previous installation if the new app fails to start. Provide a manual installation option for other packages.
+- Show the official Calibre download link and path configuration when required tools are missing. The desktop startup reminder can be turned off in Settings.
+
+### Changed
+
+- Consolidate DLsite and Comipo purchases under DLsite in the bookshelf. Keep `comipo` as a CLI alias and continue accepting existing Comipo links and IDs.
+- Offer an opt-in fallback for missing Comipo purchases when both saved sessions belong to the same viviON ID.
+- Draw series covers with tighter spacing and lighter, muted green backing sheets.
+
+### Fixed
+
+- Blend settings form backgrounds into their panels and keep dropdown borders fully visible on macOS.
+
 ## 0.5.0 - 2026-11-26
 
 ### Added

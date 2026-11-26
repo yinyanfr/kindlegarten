@@ -27,13 +27,13 @@
 >
 > Use this project only to back up Kindle books you have legally purchased from Amazon and books or comics you have legally purchased from Comipo or DLsite.
 
-Back up purchased Kindle books, Comipo comics and supported DLsite ebooks and comics. For Kindle, Kindlegarten downloads the iPad edition and preserves the color illustrations Amazon supplies for that edition.
+Back up purchased Kindle books and titles available through DLsite Play, including supported Comipo purchases. For Kindle, Kindlegarten downloads the iPad edition and preserves the color illustrations Amazon supplies for that edition.
 
 - Automatically exports text-based books as EPUB and fixed-layout comics and magazines as CBZ when their pages can be extracted as images.
 - Names output files after the book title, replaces characters disallowed in filenames, and shortens long titles. The CLI tracks the entire download with one progress bar.
 - Keeps a separate local sign-in for each Kindle store.
 
-Comipo comics are saved as CBZ. A series download exports the purchased volumes in volume order to a folder named after the series.
+A series download exports the purchased volumes in volume order to a folder named after the series.
 
 ## Desktop app
 
@@ -55,7 +55,7 @@ kindlegarten-gui
 
 See the [desktop build guide](https://github.com/yinyanfr/kindlegarten/blob/main/DESKTOP_BUILD.md) for platform requirements and source builds. Converting Kindle files uses your installed Calibre.
 
-Choose **Kindle**, **Comipo** or **DLsite** in the bookshelf. For Kindle, choose your store in the second menu. If you need to sign in, select **Sign in** in the center of the bookshelf. The account icon opens the account details and sign-out controls. In the sign-in window, use the provider's browser page or select **Paste credentials** for manual import instructions.
+Choose **Kindle** or **DLsite** in the bookshelf. Kindle also has a store selector. The **Sign in** button in the bookshelf and the account icon open settings for that account. You can sign in, reauthorize, paste credentials, or sign out.
 
 The bookshelf opens from its local cache and checks for changes in the background. Use the filter icon beside search to sort books and series together by title or purchase date. Purchase date defaults to newest first and uses the latest purchased volume for a series.
 
@@ -71,7 +71,11 @@ The **Downloads** panel opens on the right when tasks are queued. The download i
 
 Individual volumes and whole series go into the same series folder. A check mark on a cover means the book or every purchased volume in a series is saved. A number shows a partially saved series. The app checks the selected destination and counts series volumes only inside their series folder. Files copied from another device can be matched by book ID or by an unambiguous standard filename.
 
-**Settings** controls proxy, language, appearance, and the Calibre path. Leave the path blank for automatic detection. **Remove Kindle DRM** is on by default. Turn it off to save the original Kindle KFX archive without Calibre. The app supports English, Simplified Chinese and Japanese, with light, dark and system appearance options. The installed version appears next to the app name and in the window title. **About** checks for a stable GitHub release.
+### Settings
+
+Open Settings with the gear in the top right. The sidebar has **General**, **Accounts**, **Downloads**, **Network**, **Guide**, and **About & updates**. General switches between English, Simplified Chinese and Japanese, and between light, dark and system appearance. Accounts manages each Kindle store and the DLsite account. Use the back arrow to return to the current bookshelf and selection.
+
+Under **Downloads**, leave the Calibre path blank to use `KINDLE_CALIBRE_BIN` or automatic detection. You can dismiss the startup reminder and re-enable it here. **Remove Kindle DRM** is on by default. Turn it off to save the original Kindle KFX archive without Calibre.
 
 ## CLI library and formats
 
@@ -85,7 +89,7 @@ kindlegarten series SERIES_ID --source amazon --region jp --format epub --output
 kindlegarten work BJ123456 --source dlsite --format pdf
 ```
 
-`library` groups purchased books by verified series and displays series and book IDs. It defaults to Kindle Japan. `work` and `series` default to Comipo and accept `--source amazon|comipo|dlsite`.
+`library` groups purchased books by verified series and displays series and book IDs. It defaults to Kindle Japan. `work` and `series` default to DLsite. Use `--source amazon` for Kindle. The old `--source comipo` option is an alias for `dlsite`.
 
 The desktop app and `download`, `work` and `series` share the same export formats.
 
@@ -117,8 +121,7 @@ Running `kindlegarten login` with no options signs in to Amazon Japan. Kindlegar
 | Service | Default when `--method` is omitted | Explicit methods |
 | --- | --- | --- |
 | Amazon Kindle | Opens a browser and captures the authorization redirect automatically. | `browser` uses the default flow. `callback` prints the login URL and accepts the redirect in the terminal. |
-| Comipo (`--source comipo`) | Opens a Playwright browser. Kindlegarten detects a successful sign-in automatically. | `browser` uses the default flow. `credentials` uses headless Chromium. `cookie` imports an existing Comipo Play session and needs no browser. |
-| DLsite (`--source dlsite`) | Opens a Playwright browser and validates the Play session. | `browser` uses the default flow. `cookie` accepts a cookie or a Play session JSON file. |
+| DLsite (`--source dlsite`) | Opens a Playwright browser and validates the Play session. | `browser` uses the default flow. `cookie` accepts a DLsite Play cookie or session JSON. `credentials` uses headless Chromium when the official form is available. |
 
 Run `kindlegarten login --help` for the full list.
 
@@ -159,34 +162,9 @@ kindlegarten s SERIES_ID --source amazon --region jp --no-dedrm --output ./books
 
 By default, books are saved as `books/<title>.epub` or `books/<title>.cbz` under the current directory. If the title is missing, the filename uses the ASIN. Use `--output` to specify a filename and format. Relative paths start from the current directory. CBZ export requires pages that can be safely extracted as images. The CLI reports a conflict if the output file already exists.
 
-## Comipo
+## DLsite Play and Comipo compatibility
 
-Install the Comipo extra and sign in with your viviON ID. The CLI saves a local session for later downloads.
-
-```sh
-python3 -m pip install 'kindlegarten[comipo]'
-kindlegarten login --source comipo
-kindlegarten work BJ123456
-kindlegarten series TITLE12345678
-kindlegarten logout --source comipo
-```
-
-On servers without a GUI, run `kindlegarten login --source comipo --method credentials` from an interactive terminal. This method uses viviON's official form in a headless browser. It prompts in the terminal for your login ID, password, and six-digit authenticator code when requested. Password and code input are hidden.
-
-If you are already signed in on another machine, import that Comipo Play session from the terminal. In your browser's developer tools, open **Network**, reload Comipo Play, and copy the **Cookie** value under **Request Headers** for the `/api/comipo/authorize` request to `play.comipo.app`. Paste it when prompted. You can also import the `comipo-session.json` saved by kindlegarten. The CLI checks the session with Comipo Play before saving it. Both options work without launching a browser.
-
-```sh
-kindlegarten login --source comipo --method cookie
-kindlegarten login --source comipo --method cookie --session-file ~/comipo-session.json
-```
-
-If viviON requests interactive verification such as a Cloudflare challenge, complete it in the browser before copying the Cookie or exporting the session. Keep Cookies and session files private. The final address-bar URL does not carry the Comipo Play session.
-
-Use your own work ID or series ID. `w` is shorthand for `work`, and `s` is shorthand for `series`. The `download` and `d` commands still accept `work:ID`, `series:ID`, bare Comipo IDs such as `BJ123456` or `TITLE12345678`, Comipo Play reader and series links, and Comipo store product links.
-
-A work is saved to `books/<work title>.cbz`. A series is saved under `books/<series name>/` with one CBZ per purchased volume. Re-running a series skips files previously saved for the same work ID. For a work, `--output` sets the CBZ filename. For a series, it sets the parent of the series folder. The `browser` and `credentials` methods use Chrome or Playwright's Chromium. If neither is available, run `python -m playwright install chromium` in the CLI's Python environment. Comipo downloads do not require Calibre or `kindlegarten setup`.
-
-## DLsite Play
+Sign in to DLsite Play with the viviON ID used for your purchases. The old `--source comipo` option, Comipo product and Play links, and existing book IDs still work. The CLI also accepts the `[comipo]` installation extra as an alias.
 
 ```sh
 python -m pip install 'kindlegarten[dlsite]'
@@ -196,7 +174,15 @@ kindlegarten work BJ123456 --source dlsite
 kindlegarten series SERIES_ID --source dlsite
 ```
 
-The library lists purchased ebooks and comics that are available through DLsite Play. Use the IDs shown by `library`. For manual sign-in, run `kindlegarten login --source dlsite --method cookie` and paste the Cookie header from the `/api/authorize` request to `play.dlsite.com`, or add `--session-file` to import a saved `dlsite-session.json`.
+Replace the examples with IDs from `library`. Individual titles go into `books/` and series go into named subfolders. `w` and `s` are shortcuts. For manual sign-in, use `kindlegarten login --source dlsite --method cookie` and paste the Cookie header from the `/api/authorize` request to `play.dlsite.com`. Use `--session-file` to import a saved DLsite session file.
+
+If you signed in to Comipo before upgrading, sign in to DLsite with the same viviON ID. To recover purchases missing from DLsite, open **Settings → Accounts → DLsite** to check and enable compatibility. On the CLI, add `--legacy-comipo` to `library`, `download`, `work`, or `series`. Compatibility verifies both saved sessions belong to the same viviON ID and prefers the DLsite listing for overlapping purchases. Old Comipo cookies stay on their original domains. Signing out of DLsite clears both saved local sessions.
+
+## Desktop updates
+
+Go to **Settings → About & updates** and select **Check for updates**. Kindlegarten looks for a stable release, downloads the package for your platform through the configured proxy, and verifies its size and SHA-256. **Update and restart** is available for eligible Windows portable installs, Linux AppImages, and macOS apps accepted by the system's signing policy. Installation waits for active book downloads. If the new app fails to start, the updater attempts to restore the previous installation.
+
+Select **Show downloaded package** for a manual installation, including when the install location is read-only or macOS requires manual replacement. Packages are saved under `Kindlegarten updates` in the system's Downloads directory. To update a pip installation, run `python -m pip install --upgrade kindlegarten` for the CLI or `python -m pip install --upgrade "kindlegarten[gui]"` for the desktop app.
 
 ## Proxy settings
 
@@ -218,9 +204,9 @@ Set `KINDLEGARTEN_DATA_DIR` to use a different directory. To reuse sign-in state
 
 ## Troubleshooting
 
-- **Calibre cannot be found.** Set `KINDLE_CALIBRE_BIN` to the directory containing `calibre-debug` and `calibre-customize`. On Windows, these files have the `.exe` extension.
+- **Calibre is missing.** Use the startup prompt or **Settings → Downloads** to find or configure Calibre. The CLI prints the official download link and accepts `--calibre-path` or `KINDLE_CALIBRE_BIN`.
 - **Amazon sign-in has expired or you want to switch accounts.** Run `kindlegarten logout --region jp` to clear the local sign-in state for Japan, then sign in again. You can deregister the device from Amazon's **Manage Your Content and Devices** page.
-- **Comipo rejects a session.** Sign in again with `kindlegarten login --source comipo` or import a fresh session. Use `kindlegarten logout --source comipo` to clear the saved session.
+- **DLsite rejects a session.** Sign in to DLsite or import a fresh session. If you have an old Comipo session, sign in to DLsite with the same viviON ID.
 - **A book fails to download or convert.** Check that you can open it in your Kindle library for the selected region. Format and encryption compatibility depend on the files Amazon delivers for the book.
 - **Setting up Kindle downloads on another computer.** Install Calibre and kindlegarten, then run `kindlegarten setup` to install the export dependencies.
 

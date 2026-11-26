@@ -93,7 +93,7 @@
   },
   "Back up purchased Kindle, Comipo, and DLsite books.": {
     "ja": "購入済みの Kindle、Comipo、DLsite の本をバックアップします。",
-    "zh": "下载 Kindle 和 Comipo 书库中的作品，导出 EPUB 或 CBZ。"
+    "zh": "备份已购买的 Kindle、Comipo 和 DLsite 书籍。"
   },
   "Book ID or ASIN.": {
     "ja": "本の ID または ASIN。",
@@ -1234,5 +1234,189 @@
   "{count} of {total} books downloaded": {
     "ja": "{total} 冊のうち {count} 冊をダウンロード済み",
     "zh": "已下载 {count}／{total} 本"
+  },
+  "Sign in to Amazon or DLsite.": {
+    "ja": "Amazon または DLsite にサインインします。",
+    "zh": "登录 Amazon 或 DLsite。"
+  },
+  "browser opens a browser, callback pastes an Amazon redirect, credentials signs in with viviON ID, and cookie imports a Play session.": {
+    "ja": "browser はブラウザーを開き、callback は Amazon のリダイレクトを入力し、credentials は viviON ID でサインインし、cookie は Play セッションを読み込みます。",
+    "zh": "browser 打开浏览器，callback 接收 Amazon 跳转，credentials 使用 viviON ID 登录，cookie 导入 Play 会话。"
+  },
+  "Include missing Comipo purchases from a verified matching account.": {
+    "ja": "同一アカウントと確認した Comipo から不足している購入作品を補います。",
+    "zh": "从核实为同一账号的 Comipo 会话补齐缺失的已购书籍。"
+  },
+  "Use the Cookie from DLsite Play. An old Comipo Cookie cannot sign in to DLsite.": {
+    "ja": "DLsite Play の Cookie を使ってください。以前の Comipo の Cookie は DLsite のログインに使えません。",
+    "zh": "请使用 DLsite Play 的 Cookie。旧 Comipo Cookie 无法登录 DLsite。"
+  },
+  "The DLsite and Comipo sessions must verify the same viviON ID for compatibility.": {
+    "ja": "互換機能には、DLsite と Comipo の両方で同じ viviON ID を確認できるセッションが必要です。",
+    "zh": "启用兼容功能前，须确认 DLsite 和 Comipo 会话属于同一个 viviON ID。"
+  },
+  "Amazon uses the final redirect URL. DLsite accepts the Cookie request header from Play or a session JSON file.": {
+    "ja": "Amazon では最後のリダイレクト URL を、DLsite では Play の Cookie リクエストヘッダーかセッション JSON を使います。",
+    "zh": "Amazon 使用最终跳转网址。DLsite 接受 Play 的 Cookie 请求标头或会话 JSON 文件。"
+  },
+  "{binary} was not found.": {
+    "ja": "{binary} が見つかりません。",
+    "zh": "找不到 {binary}。"
+  },
+  "Download Calibre from {url} or specify its location with --calibre-path or KINDLE_CALIBRE_BIN.": {
+    "ja": "{url} から Calibre を入手するか、--calibre-path または KINDLE_CALIBRE_BIN で場所を指定してください。",
+    "zh": "请从 {url} 下载 Calibre，或用 --calibre-path 或 KINDLE_CALIBRE_BIN 指定 Calibre 的位置。"
+  },
+  "General": {
+    "ja": "一般",
+    "zh": "通用"
+  },
+  "Accounts": {
+    "ja": "アカウント",
+    "zh": "账号"
+  },
+  "About & updates": {
+    "ja": "バージョン情報と更新",
+    "zh": "关于与更新"
+  },
+  "Save Calibre path": {
+    "ja": "Calibre のパスを保存",
+    "zh": "保存 Calibre 路径"
+  },
+  "Calibre is available.": {
+    "ja": "Calibre を利用できます。",
+    "zh": "Calibre 可用。"
+  },
+  "Calibre is missing": {
+    "ja": "Calibre が見つかりません",
+    "zh": "未找到 Calibre"
+  },
+  "Install Calibre to convert Kindle books or specify its location in Settings.": {
+    "ja": "Kindle 本を変換するには Calibre をインストールするか、設定で場所を指定してください。",
+    "zh": "转换 Kindle 书籍需要 Calibre。请下载 Calibre，或在设置中指定已安装的位置。"
+  },
+  "Set Calibre path": {
+    "ja": "Calibre のパスを設定",
+    "zh": "设置 Calibre 路径"
+  },
+  "Download Calibre": {
+    "ja": "Calibre をダウンロード",
+    "zh": "下载 Calibre"
+  },
+  "Do not remind me next time": {
+    "ja": "次回から表示しない",
+    "zh": "下次不再提示"
+  },
+  "Remind me at startup if Calibre is missing": {
+    "ja": "Calibre が見つからない場合は起動時に通知する",
+    "zh": "启动时未找到 Calibre 则提醒"
+  },
+  "Settings saved.": {
+    "ja": "設定を保存しました。",
+    "zh": "设置已保存。"
+  },
+  "Reauthorize": {
+    "ja": "再認証",
+    "zh": "重新授权"
+  },
+  "Checking account…": {
+    "ja": "アカウントを確認しています…",
+    "zh": "正在检查账号…"
+  },
+  "This session has expired. Sign in again.": {
+    "ja": "セッションの有効期限が切れました。再度サインインしてください。",
+    "zh": "会话已过期，请重新登录。"
+  },
+  "Comipo compatibility": {
+    "ja": "Comipo 互換機能",
+    "zh": "Comipo 兼容"
+  },
+  "Check for missing Comipo purchases": {
+    "ja": "不足している Comipo 購入作品を確認",
+    "zh": "检查缺失的 Comipo 已购作品"
+  },
+  "Include missing Comipo purchases": {
+    "ja": "不足している Comipo 購入作品を補う",
+    "zh": "补齐缺失的 Comipo 已购作品"
+  },
+  "Sign in to DLsite with the same viviON ID as your saved Comipo account.": {
+    "ja": "保存済みの Comipo と同じ viviON ID で DLsite にサインインしてください。",
+    "zh": "请使用旧 Comipo 会话对应的同一 viviON ID 登录 DLsite。"
+  },
+  "Comparing purchased libraries…": {
+    "ja": "購入済みライブラリを比較しています…",
+    "zh": "正在比较已购书库…"
+  },
+  "{count} purchases are available through Comipo compatibility.": {
+    "ja": "Comipo 互換機能で {count} 件の作品を利用できます。",
+    "zh": "可通过 Comipo 兼容补齐 {count} 本已购作品。"
+  },
+  "No missing Comipo purchases were found.": {
+    "ja": "不足している Comipo 購入作品はありません。",
+    "zh": "未找到缺失的 Comipo 已购作品。"
+  },
+  "A verifiable update package is not available.": {
+    "ja": "検証可能な更新パッケージがありません。",
+    "zh": "没有可验证的更新包。"
+  },
+  "The update download was redirected to an unexpected address.": {
+    "ja": "更新ファイルのダウンロード先が許可されていないアドレスに変わりました。",
+    "zh": "更新下载跳转到了意外地址。"
+  },
+  "The update package failed its size or SHA-256 check.": {
+    "ja": "更新パッケージのサイズまたは SHA-256 を確認できませんでした。",
+    "zh": "更新包未通过文件大小或 SHA-256 校验。"
+  },
+  "Download update": {
+    "ja": "更新をダウンロード",
+    "zh": "下载更新包"
+  },
+  "Update and restart": {
+    "ja": "更新して再起動",
+    "zh": "更新并重启"
+  },
+  "Show downloaded package": {
+    "ja": "保存した更新パッケージを表示",
+    "zh": "显示已下载的更新包"
+  },
+  "Downloading update…": {
+    "ja": "更新をダウンロードしています…",
+    "zh": "正在下载更新…"
+  },
+  "The update is ready. It will install after your book downloads finish.": {
+    "ja": "更新の準備ができました。本のダウンロードが終わった後にインストールします。",
+    "zh": "更新已就绪，书籍下载完成后将安装。"
+  },
+  "Restarting to install the update…": {
+    "ja": "更新をインストールするため再起動しています…",
+    "zh": "正在重启以安装更新…"
+  },
+  "Update downloaded. Install it manually from the saved package.": {
+    "ja": "更新を保存しました。パッケージから手動でインストールしてください。",
+    "zh": "更新包已保存，请使用该文件手动安装。"
+  },
+  "For a pip installation, run python -m pip install --upgrade \"kindlegarten[gui]\".": {
+    "ja": "pip 版の更新は python -m pip install --upgrade \"kindlegarten[gui]\" を実行してください。",
+    "zh": "如使用 pip 安装，请运行 python -m pip install --upgrade \"kindlegarten[gui]\"。"
+  },
+  "The update could not be prepared for automatic installation.": {
+    "ja": "更新の自動インストールを準備できませんでした。",
+    "zh": "无法准备自动安装。"
+  },
+  "Update failed": {
+    "ja": "更新に失敗しました",
+    "zh": "更新失败"
+  },
+  "The updated app could not start. Your previous installation is available.": {
+    "ja": "更新後のアプリを起動できませんでした。以前のバージョンを利用できます。",
+    "zh": "新版无法启动，已恢复原有安装。"
+  },
+  "Legacy Comipo compatibility is only available for DLsite.": {
+    "ja": "旧 Comipo 互換機能は DLsite のみで使えます。",
+    "zh": "旧版 Comipo 兼容仅适用于 DLsite。"
+  },
+  "You can check for missing Comipo purchases in Settings → Accounts.": {
+    "ja": "設定の「アカウント」で不足している Comipo 購入作品を確認できます。",
+    "zh": "可在设置的「账号」中检查缺失的 Comipo 已购作品。"
   }
 }

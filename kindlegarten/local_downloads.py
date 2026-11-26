@@ -72,7 +72,7 @@ def matched_ids(identifiers, source, region):
         provider, identifier = match.groups()
         provider = provider.lower() if provider else ""
         recognized = True
-        match_source = provider in {"", source, f"{source}:{region}"}
+        match_source = provider in {"", source, f"{source}:{region}"} or (source == "dlsite" and provider == "comipo")
         if source == "amazon" and provider in {"asin", "urn:asin"}:
             match_source = True
         if match_source:
@@ -98,10 +98,12 @@ def scan_folder(data, folder, books, source, region):
     known_ids = {book.id.upper(): book.id for book in books}
     for book in books:
         for suffix in formats:
-            path = already_saved(data, folder, f"{identity}:{book.id}", suffix)
-            if path in files:
-                matched.add(book.id)
-                remaining.discard(path)
+            prefixes = (identity, "Comipo") if source == "dlsite" else (identity,)
+            for prefix in prefixes:
+                path = already_saved(data, folder, f"{prefix}:{book.id}", suffix)
+                if path in files:
+                    matched.add(book.id)
+                    remaining.discard(path)
             name = file_name_key(cli.book_filename(book.title, book.id, "." + suffix))
             titles[name].add(book.id)
     for path in remaining:

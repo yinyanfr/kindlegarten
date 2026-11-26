@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 
 from kindlegarten import __version__
 from kindlegarten.cli import KINDL_SOURCE, fetch_verified
+from kindlegarten.update_install import HELPER_NAME, PORTABLE_MARKER
 
 
 def install_kindl():
@@ -93,12 +94,21 @@ def build(args):
         notices = staging / "Third-party notices"
         license_notices(notices)
         shutil.copyfile(ROOT / "LICENSE", notices / "Kindlegarten.txt")
+        helpers = staging / "helpers"
+        updater = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onefile",
+                   "--name", "KindlegartenUpdater", "--distpath", str(helpers),
+                   "--workpath", str(staging / "updater-work"), "--specpath", str(staging),
+                   "--paths", str(ROOT)]
+        if sys.platform == "win32":
+            updater.append("--noconsole")
+        subprocess.run([*updater, str(ROOT / "scripts" / "update_entry.py")], check=True, cwd=ROOT)
         command = [
             sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onedir", "--windowed",
             "--name", "Kindlegarten", "--distpath", str(staging / "dist"), "--workpath", str(staging / "work"),
             "--specpath", str(staging), "--paths", str(ROOT), "--icon", str(art),
             "--hidden-import", "kindl", "--collect-submodules", "kindl", "--collect-all", "playwright",
             "--add-data", f"{resources}:kindlegarten", "--add-data", f"{notices}:Third-party notices",
+            "--add-binary", f"{helpers / HELPER_NAME}:updater",
         ]
         if sys.platform == "darwin":
             command.extend(["--osx-bundle-identifier", "io.github.yinyanfr.kindlegarten"])
@@ -110,6 +120,7 @@ def build(args):
             subprocess.run(["ditto", "-c", "-k", "--keepParent", bundle, f"{package}.zip"], check=True)
         elif sys.platform == "win32":
             smoke = dist / "Kindlegarten" / "Kindlegarten.exe"
+            (smoke.parent / PORTABLE_MARKER).touch()
             shutil.make_archive(str(package), "zip", root_dir=dist, base_dir="Kindlegarten")
         else:
             appdir = staging / "Kindlegarten.AppDir"

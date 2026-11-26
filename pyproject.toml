@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "kindlegarten"
 dynamic = ["version"]
-description = "A command-line backup tool for purchased Amazon Kindle books and Comipo comics"
+description = "A desktop app and CLI for backing up purchased Kindle and DLsite ebooks and comics"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = ["httpx[socks]>=0.28", "Pillow>=10", "img2pdf>=0.6", "playwright>=1.51"]
@@ -19,7 +19,7 @@ classifiers = [
 
 [project.optional-dependencies]
 browser = ["playwright>=1.51"]
-comipo = ["playwright>=1.51", "cryptography>=42"]
+comipo = ["playwright>=1.51", "cryptography>=42", "dlsite-async>=1.0.1,<2"]
 dlsite = ["playwright>=1.51", "cryptography>=42", "dlsite-async>=1.0.1,<2"]
 gui = ["PySide6-Essentials>=6.8,<7", "playwright>=1.51", "cryptography>=42", "dlsite-async>=1.0.1,<2"]
 

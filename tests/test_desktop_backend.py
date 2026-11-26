@@ -278,6 +278,7 @@ class CommandsTest(unittest.TestCase):
             path = root / "calibre.app" / "Contents" / "MacOS" / binary
             path.parent.mkdir(parents=True)
             path.touch()
+            path.chmod(0o755)
             with patch.dict(os.environ, {"KINDLE_CALIBRE_BIN": str(root / "missing")}):
                 for value in (path, path.parent, root / "calibre.app"):
                     with cli.using_calibre(value):
@@ -326,10 +327,12 @@ class CommandsTest(unittest.TestCase):
 class DesktopServicesTest(unittest.TestCase):
     def test_release_uses_only_the_project_download_address(self):
         with patch.object(updates, "platform_suffix", return_value="-macos-arm64.zip"):
-            metadata = {"tag_name": "v1.2.0", "assets": [{"name": "kindlegarten-1.2.0-macos-arm64.zip"}]}
+            metadata = {"tag_name": "v1.2.0", "assets": [{"name": "kindlegarten-1.2.0-macos-arm64.zip",
+                                                       "size": 100, "digest": "sha256:" + "0" * 64}]}
             newer = updates.newer_release(metadata, installed="1.1.9")
-            self.assertEqual(newer[0], "v1.2.0")
-            self.assertTrue(newer[1].startswith(updates.REPOSITORY + "/releases/download/"))
+            self.assertEqual(newer.tag, "v1.2.0")
+            self.assertTrue(newer.download_url.startswith(updates.REPOSITORY + "/releases/download/"))
+            self.assertEqual(updates.newer_release({"tag_name": "v1.2.0", "assets": []}, installed="1.1.9").asset, "")
             self.assertIsNone(updates.newer_release(metadata, installed="1.2.0"))
             self.assertIsNone(updates.newer_release({**metadata, "prerelease": True}, installed="1.1.9"))
 

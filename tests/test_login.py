@@ -25,7 +25,7 @@ class LoginOptionsTest(unittest.TestCase):
                     patch.object(comipo, "login") as login,
                 ):
                     self.assertEqual(cli.entrypoint(), 0)
-                    login.assert_called_once_with(data, "kindlegarten", method=method)
+                    login.assert_called_once_with(data, "kindlegarten", method=method, site=comipo.DLSITE)
 
     def test_amazon_browser_dispatches_through_the_kindle_worker(self):
         for options in ([], ["--method", "browser"]):
@@ -67,7 +67,8 @@ class LoginOptionsTest(unittest.TestCase):
             patch.object(comipo, "import_session") as import_session,
         ):
             self.assertEqual(cli.entrypoint(), 0)
-            import_session.assert_called_once_with(Path(temporary).resolve(), "kindlegarten", Path("my-session.json"))
+            import_session.assert_called_once_with(Path(temporary).resolve(), "kindlegarten", Path("my-session.json"),
+                                                   site=comipo.DLSITE)
 
     def test_callback_origin_and_code(self):
         query = "?openid.oa2.authorization_code=test-code"

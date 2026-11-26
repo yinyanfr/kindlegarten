@@ -30,7 +30,7 @@ kindlegarten --version
 
 ## 2. 登录 Kindle
 
-先安装用于导出 Kindle 电子书的 Calibre，再运行初始化和登录命令。[下载 Calibre](https://calibre-ebook.com/download)
+先安装用于导出 Kindle 电子书的 Calibre，再运行初始化和登录命令。如果找不到 Calibre，可用 `kindlegarten setup --calibre-path PATH` 指定安装位置。[下载 Calibre](https://calibre-ebook.com/download)
 
 ```sh
 kindlegarten setup
@@ -57,20 +57,9 @@ kindlegarten download B0EXAMPLE0 --region jp
 
 下载完成后，终端会显示保存路径。文件默认保存在当前目录下的 `books/` 文件夹。文字书通常保存为 EPUB，受支持的纯图片漫画保存为 CBZ。
 
-## Comipo 和 DLsite
+## DLsite（含 Comipo 购买）
 
-完成第 1 步后，按购买书籍的商店运行下方命令。在浏览器中登录后，再运行 `library` 和 `work`。把示例中的 `BJ123456` 换成 `library` 显示的书籍或漫画 ID。
-
-**Comipo**
-
-```sh
-python -m pip install "kindlegarten[comipo]"
-kindlegarten login --source comipo
-kindlegarten library --source comipo
-kindlegarten work BJ123456 --source comipo
-```
-
-**DLsite**
+完成第 1 步后，用购买作品的 viviON ID 登录 DLsite。如果之前登录过 Comipo，请用相同的 viviON ID 登录 DLsite。已保存的 DLsite 会话可以继续使用。在浏览器中登录后，再运行 `library` 和 `work`。把 `BJ123456` 换成书库中显示的作品 ID。
 
 ```sh
 python -m pip install "kindlegarten[dlsite]"

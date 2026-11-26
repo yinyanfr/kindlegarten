@@ -19,6 +19,7 @@ class Book:
     cover: str = ""
     purchased_at: float | None = None
     store_url: str = ""
+    legacy: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +45,8 @@ class Library:
 def store_page(entry, source, region):
     from kindlegarten.marketplaces import MARKETPLACES
 
+    if isinstance(entry, Book) and entry.legacy:
+        source = "comipo"
     if source == "amazon":
         host = MARKETPLACES[region].site
     else:

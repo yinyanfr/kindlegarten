@@ -4,6 +4,7 @@ import base64
 import json
 import os
 import re
+import shutil
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -85,8 +86,6 @@ def parse_target(value, source=None):
     except ValueError:
         host = None
     if host in {"play.comipo.app", "www.comipo.app", "comipo.app", "play.dlsite.com", "www.dlsite.com"}:
-        if source is not None and host.endswith("dlsite.com") != (source == "dlsite"):
-            raise KindleError(tr("The link does not match the selected source."))
         if url.scheme in {"https", "http"}:
             if host in {"play.comipo.app", "play.dlsite.com"}:
                 match = re.fullmatch(r"/(work|series)/([^/]+)(?:/(?:tree|viewer)(?:/[^/]+)*)?/?", url.path)
@@ -161,6 +160,8 @@ def imported_storage(text, site=COMIPO):
             header = SimpleCookie(text)
         except CookieError:
             raise KindleError(tr('Invalid Cookie format. Copy the full Cookie header from Play.')) from None
+        if site is DLSITE and {"comipoplay_session", "_comipo_SID"} & header.keys():
+            raise KindleError(tr("Use the Cookie from DLsite Play. An old Comipo Cookie cannot sign in to DLsite."))
         scopes = site.scopes if site is COMIPO else {
             name: site.scopes.get(name, "play.dlsite.com") for name in header
         }
@@ -276,11 +277,12 @@ def sign_in_with_credentials(page):
             raise KindleError(tr('viviON ID rejected the code or needs additional verification. Check it and try again.')) from None
 
 
-def login(data, command, *, method="browser", site=COMIPO, interactive=True):
+def login(data, command, *, method="browser", site=COMIPO, interactive=True, force=False):
     if interactive and not sys.stdin.isatty():
         raise KindleError(tr('Run the Play login command in an interactive terminal.'))
     with playwright_session(command, extra="comipo") as (playwright, error_type):
-        profile = None if method == "credentials" else data / "browser" / site.name.lower()
+        browser_profile = data / "browser" / site.name.lower()
+        profile = None if method == "credentials" or force else browser_profile
         with browser_context(playwright, error_type, profile=profile, headless=method == "credentials") as context:
             page = context.new_page()
             page.goto(site.login_url, wait_until="domcontentloaded")
@@ -294,6 +296,8 @@ def login(data, command, *, method="browser", site=COMIPO, interactive=True):
                 raise KindleError(tr("The service did not establish a session."))
             library_cache_path(data, site.name.lower(), None).unlink(missing_ok=True)
             save_session(context.request, session_path(data, site), site)
+        if force:
+            shutil.rmtree(browser_profile, ignore_errors=True)
     print(tr('Saved the Comipo session.').replace("Comipo", site.name))
 
 
@@ -425,7 +429,7 @@ def play_client(storage, command, site):
 
 def saved_account(data, command, site):
     try:
-        storage = json.loads(session_path(data, site).read_text(encoding="utf-8"))
+        storage = json.loads(download_session(session_path(data, site)).read_text(encoding="utf-8"))
     except (FileNotFoundError, ValueError):
         return None
     with play_client(storage, command, site) as (_, client):
@@ -447,6 +451,8 @@ def saved_account(data, command, site):
 def session(data, command, site=COMIPO):
     state = download_session(session_path(data, site))
     if not state.is_file():
+        if site is DLSITE and session_path(data, COMIPO).is_file():
+            raise SignInRequired(tr("Sign in to DLsite with the same viviON ID as your saved Comipo account."))
         raise SignInRequired(tr("Sign in to {site} before accessing the library.", site=site.name))
     try:
         storage = json.loads(state.read_text(encoding="utf-8"))
@@ -663,7 +669,10 @@ def download(target, output, data, books, command, requested="auto", *, site=COM
             _, work_id = checked_target("work", work_id)
             identity = f"{site.name}:{work_id}"
             try:
-                if (kind == "series" or resume) and (existing := already_saved(data, directory, identity, requested)):
+                identities = (identity, f"Comipo:{work_id}") if site is DLSITE else (identity,)
+                if (kind == "series" or resume) and (existing := next(
+                    (path for key in identities if (path := already_saved(data, directory, key, requested))), None
+                )):
                     print(tr("Already saved: {path}", path=existing), flush=True)
                     continue
                 if site is COMIPO and requested in {"auto", "cbz"}:
