@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/media/app-icon.png" width="112" height="112" alt="Kindlegarten 应用图标">
+  <img src="docs/media/app-icon.png" width="112" height="112" alt="Kindlegarten 应用图标，书本放在绿色归档盒里">
 </p>
 
 <h1 align="center">Kindlegarten</h1>
@@ -16,6 +16,7 @@
 </p>
 
 <p align="center">
+  <a href="QUICKSTART.zh-CN.md">CLI 快速入门</a> ·
   <a href="#安装">安装说明</a> ·
   <a href="CHANGELOG.md">更新日志</a> ·
   <a href="README.md">English</a>
@@ -52,7 +53,7 @@ python -m pip install 'kindlegarten[gui]'
 kindlegarten-gui
 ```
 
-平台要求和自行编译的步骤见[桌面构建说明](DESKTOP_BUILD.md)。导出 Kindle 电子书使用本机安装的 Calibre。
+平台要求和自行编译的步骤见[桌面构建说明](DESKTOP_BUILD.md)。转换 Kindle 电子书使用本机安装的 Calibre。
 
 在书库选择 **Kindle**、**Comipo** 或 **DLsite**。使用 Kindle 时，再用旁边的菜单选择站点。未登录时，点击书架中央的「登录」。用户图标会打开账号与退出登录选项。可在服务商打开的浏览器页面登录，也可点击「手动粘贴凭证」查看导入说明。
 
@@ -60,15 +61,17 @@ kindlegarten-gui
 
 ### 下载队列
 
-先选好保存目录和文件格式。鼠标移到封面上后，点击中央图标可下载单本或打开系列。点击卡片其他位置可选中书目。按住 Command（macOS）或 Ctrl（Windows、Linux）可逐项多选，按住 Shift 可连续选择。点击「下载所选」后，按钮会在任务入队期间转圈。
+先选好保存目录和文件格式。鼠标移到封面上后，点击中央图标可下载单本或打开系列。右键点击卡片，可下载书目或打开商店页面，系列还有「打开」选项。点击卡片其他位置可选中书目。按住 Command（macOS）或 Ctrl（Windows、Linux）可逐项多选，按住 Shift 可连续选择。点击「下载所选」后，按钮会在任务入队期间转圈。
 
-右侧「下载」区按单本或系列显示任务，也会显示可获取的进度和速度。上方菜单可选择同时下载 1 到 10 个任务，默认 3 个。下载期间仍可浏览书库。
+任务入队后，右侧下载栏会自动展开。也可用应用右上角的下载图标显示或收起。点击下载栏上的加号，选择来源和 Kindle 站点，每行输入一个书籍或系列 ID。如果一个 ID 同时对应单本和系列，可用 `work:` 或 `series:` 指定。下载栏显示可获取的进度和速度，可选择同时下载 1 到 10 个任务，默认 3 个。
 
 - **叉号**取消等待中或下载中的任务，已经保存的文件会保留。
 - **环形箭头**以原来的保存目录和格式重试失败任务，并将它排到队尾。重试系列时会跳过已经按指定格式保存的卷册。
 - **文件夹**在任务完成后打开保存位置。
 
-「设置」提供代理、简体中文、English、日本語，以及浅色、深色和跟随系统的外观选项。「关于」显示本机版本，并检查 GitHub 上的稳定版本。
+从系列页下载单卷与下载整套使用同一个系列文件夹。封面右下角的对钩表示单本或全部已购卷已下载，数字表示系列已下载部分卷册。应用扫描当前保存目录，只统计系列文件夹里的卷册。从另一台设备复制的文件也可通过文件内 ID 或唯一匹配的标准文件名识别。
+
+「设置」提供代理、语言、外观和 Calibre 路径。Calibre 路径留空时自动查找。「去除 Kindle DRM」默认开启，关闭后直接保存 Kindle 原始 KFX 归档，无需 Calibre。界面支持简体中文、English、日本語，以及浅色、深色和跟随系统的外观。应用名称旁和系统窗口标题栏会显示当前版本。「关于」可检查 GitHub 上的稳定版本。
 
 ## CLI 书库与格式
 
@@ -98,14 +101,14 @@ CLI 跟随系统语言，找不到对应语言时使用英语。可将 `KINDLEGA
 
 ## 安装
 
-需要 Python 3.11 或更新版。下载 Kindle 电子书还需要 [Calibre](https://calibre-ebook.com/download) 和用于登录 Amazon 的浏览器。命令面向 macOS、Windows 和 Linux，已在 macOS 实机验证。
+需要 Python 3.11 或更新版。登录 Amazon 需要浏览器，转换 Kindle 电子书需要 [Calibre](https://calibre-ebook.com/download)。命令面向 macOS、Windows 和 Linux，已在 macOS 实机验证。
 
 ```sh
 python3 -m pip install kindlegarten
-kindlegarten setup
+kindlegarten --version
 ```
 
-Windows 可用 `py -3 -m pip install kindlegarten`。若系统的 Python 由包管理器维护，可在虚拟环境中运行 `pip install kindlegarten`，或用 `pipx install kindlegarten` 安装命令。首次运行 `kindlegarten setup` 会安装导出所需的组件。
+Windows 可用 `py -3 -m pip install kindlegarten`。若系统的 Python 由包管理器维护，可在虚拟环境中运行 `pip install kindlegarten`，或用 `pipx install kindlegarten` 安装命令。安装、登录和下载第一本书的完整步骤见 [CLI 快速入门](QUICKSTART.zh-CN.md)。
 
 ## 登录方式
 
@@ -120,6 +123,8 @@ Windows 可用 `py -3 -m pip install kindlegarten`。若系统的 Python 由包�
 运行 `kindlegarten login --help` 可查看所有选项。
 
 ## Amazon Kindle
+
+如需转换 Kindle 电子书，先安装 Calibre，再运行一次 `kindlegarten setup`。
 
 ```sh
 kindlegarten login --region jp
@@ -141,6 +146,15 @@ kindlegarten login --region jp --method callback
 kindlegarten download "https://www.amazon.co.jp/dp/B0EXAMPLE0"
 kindlegarten download B0EXAMPLE0 --output "My Book.epub"
 kindlegarten download --help
+```
+
+在 `setup`、`download`、`work` 或 `series` 后加 `--calibre-path PATH` 可指定 Calibre。路径可指向可执行文件目录、可执行文件或 macOS 的 `calibre.app`。省略参数时，优先读取 `KINDLE_CALIBRE_BIN`，未设置该变量时再自动查找。
+
+Kindle 转换默认开启 `--dedrm`。使用 `--no-dedrm` 和 Auto 格式可保留原始归档，自定义输出文件名须以 `.kfx-zip` 结尾。登录和下载原始 Kindle 文件无需 Calibre。
+
+```sh
+kindlegarten d B0EXAMPLE0 --no-dedrm --output "My Book.kfx-zip"
+kindlegarten s SERIES_ID --source amazon --region jp --no-dedrm --output ./books
 ```
 
 默认输出到当前目录下的 `books/<书名>.epub` 或 `books/<书名>.cbz`，缺少可用书名时使用 ASIN。`--output` 可以指定文件名和格式，相对路径以当前目录为准。指定 CBZ 时，程序会检查页面能否安全地作为纯图片导出。已有同名文件会提示冲突。

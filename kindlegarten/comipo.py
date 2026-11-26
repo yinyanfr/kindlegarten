@@ -610,7 +610,7 @@ def write_comic(client, work_id, destination, data, *, announce=True):
                         archive.writestr(f"{page_number:0{width}d}{extension}", image)
                         progress.finish_resource()
                         progress.advance(len(image))
-                archive.comment = f"Comipo work:{work_id}".encode("ascii")
+                archive.comment = f"{client.site.name} work:{work_id}".encode("ascii")
             require_new_output(destination)
             publish_book(staged, destination)
         finished = True

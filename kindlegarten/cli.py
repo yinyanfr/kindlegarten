@@ -12,6 +12,7 @@ import sys
 import unicodedata
 import warnings
 from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from time import monotonic
@@ -49,6 +50,8 @@ KFX_SOURCE = (
 )
 PLUGINS = ("KFX Input.zip", "DeDRM.zip")
 SOURCES = ("amazon", "comipo", "dlsite")
+CALIBRE_PATH = ContextVar("calibre_path", default=None)
+ORIGINAL_KFX = "kfx-zip"
 
 
 class KindleError(Exception):
@@ -69,13 +72,32 @@ def user_data_directory():
     return base / "kindlegarten"
 
 
+@contextmanager
+def using_calibre(path):
+    token = CALIBRE_PATH.set(path)
+    try:
+        yield
+    finally:
+        CALIBRE_PATH.reset(token)
+
+
+def calibre_directory(path):
+    path = Path(path).expanduser().absolute()
+    if path.suffix.lower() == ".app" and path.is_dir():
+        return path / "Contents" / "MacOS"
+    if path.is_file():
+        return path.parent
+    return path
+
+
 def calibre_executable(name):
     binary = name + ".exe" if os.name == "nt" else name
-    override = os.environ.get("KINDLE_CALIBRE_BIN")
+    override = CALIBRE_PATH.get() or os.environ.get("KINDLE_CALIBRE_BIN")
     if override:
-        candidate = Path(override).expanduser() / binary
+        candidate = calibre_directory(override) / binary
         if candidate.is_file():
             return candidate
+        raise KindleError(tr("No Calibre tool {binary} was found at {path}.", binary=binary, path=override))
     else:
         on_path = shutil.which(binary)
         if on_path:
@@ -293,7 +315,7 @@ def start_login(args):
         raise KindleError(tr("--session-file requires --method cookie with Comipo or DLsite."))
     if args.method in {"credentials", "cookie"}:
         raise KindleError(tr('Use --method browser or --method callback for Amazon.'))
-    require_setup()
+    setup_worker_runtime()
     state = account_path(args.region)
     run_worker("_login", args.region, state, args.method or "browser", sys.executable)
 
@@ -442,8 +464,9 @@ def download_selection(args):
 
     books = getattr(args, "books", BOOKS)
     if args.source == "amazon":
+        dedrm = getattr(args, "dedrm", True)
         if args.kind == "series":
-            return download_amazon_series(args.identifier, args.region or "jp", args.output, args.format)
+            return download_amazon_series(args.identifier, args.region or "jp", args.output, args.format, dedrm=dedrm)
         asin, region = book_target(args.identifier)
         if args.region and region and args.region != region:
             raise KindleError(tr('The product link and --region specify different Amazon stores.'))
@@ -451,9 +474,11 @@ def download_selection(args):
         if getattr(args, "resume", False):
             from kindlegarten.formats import already_saved
 
-            if already_saved(DATA, books, f"amazon:{region}:{asin}", args.format):
+            requested = args.format if dedrm else ORIGINAL_KFX
+            if already_saved(DATA, books, f"amazon:{region}:{asin}", requested):
                 return None
-        return download_amazon(asin, region, args.output, args.format, directory=books)
+        return download_amazon(asin, region, args.output, args.format, directory=books,
+                               dedrm=dedrm, title=getattr(args, "title", ""))
     if args.region:
         raise KindleError(tr('--region is only available for Amazon.'))
     site = DLSITE if args.source == "dlsite" else COMIPO
@@ -462,9 +487,11 @@ def download_selection(args):
                          resume=getattr(args, "resume", False))
 
 
-def download_amazon_series(identifier, region, output, requested):
+def download_amazon_series(identifier, region, output, requested, *, dedrm=True):
     from kindlegarten.formats import already_saved
 
+    if not dedrm:
+        original_kfx_format(requested)
     snapshot = read_library("amazon", region)
     series = next((entry for entry in snapshot.series if entry.id == identifier), None)
     if series is None:
@@ -474,11 +501,11 @@ def download_amazon_series(identifier, region, output, requested):
     for book in series.books:
         report_book(book.title)
         identity = f"amazon:{region}:{book.id}"
-        if path := already_saved(DATA, directory, identity, requested):
+        if path := already_saved(DATA, directory, identity, requested if dedrm else ORIGINAL_KFX):
             print(tr("Already saved: {path}", path=path), flush=True)
             continue
         try:
-            download_amazon(book.id, region, None, requested, directory=directory)
+            download_amazon(book.id, region, None, requested, directory=directory, dedrm=dedrm, title=book.title)
         except (KindleError, OSError) as error:
             failures.append(book.id)
             print(f"{book.id}: {error}", file=sys.stderr)
@@ -499,21 +526,56 @@ def download_book(args):
     asin, site_region = book_target(args.book)
     if site_region and args.region and site_region != args.region:
         raise KindleError(tr('The product link and --region specify different Amazon stores.'))
-    return download_amazon(asin, args.region or site_region or "jp", args.output, args.format)
+    return download_amazon(asin, args.region or site_region or "jp", args.output, args.format, dedrm=args.dedrm)
 
 
-def download_amazon(asin, region, output, requested="auto", *, directory=None):
+def original_kfx_format(requested, destination=None):
+    if requested != "auto" or (destination is not None and destination.suffix.lower() != ".kfx-zip"):
+        raise KindleError(tr("Original Kindle downloads require Auto format and a .kfx-zip output filename."))
+
+
+def download_original_kfx(asin, region, account, directory, destination, title):
+    from kindlegarten.formats import publish_export
+    from kindlegarten.library import cached_library
+
+    if not title and (library := cached_library(DATA, "amazon", region)) is not None:
+        books = (*library.books, *(book for group in library.series for book in group.books))
+        title = next((book.title for book in books if book.id == asin), "")
+    if not getattr(sys, "frozen", False):
+        setup_worker_runtime()
+    with TemporaryDirectory(prefix=".job-", dir=download_directory(DATA)) as temporary:
+        archive = Path(temporary) / f"{asin}.kfx-zip"
+        print(tr('Requesting the {region} Kindle for iPad edition of {asin}…', region=region, asin=asin), flush=True)
+        run_worker("_download", account, asin, archive, "original")
+        check_cancelled()
+        try:
+            with ZipFile(archive) as package:
+                if not package.namelist() or package.testzip() is not None:
+                    raise BadZipFile
+        except (BadZipFile, OSError):
+            raise KindleError(tr("The original Kindle archive is incomplete.")) from None
+        destination = publish_export(archive, destination, directory, title or asin, asin,
+                                     DATA, f"amazon:{region}:{asin}", ORIGINAL_KFX)
+    print(tr('Saved {destination}', destination=destination))
+
+
+def download_amazon(asin, region, output, requested="auto", *, directory=None, dedrm=True, title=""):
     from kindlegarten.formats import convert, publish_export, selected_format
 
     destination = output.expanduser().absolute() if output else None
-    requested = selected_format(requested, destination)
-    requested_format = {"zip": "cbz", "pdf": "auto"}.get(requested, requested)
+    if not dedrm:
+        original_kfx_format(requested, destination)
+    else:
+        requested = selected_format(requested, destination)
     if destination:
         require_new_output(destination)
-    require_setup()
     account = download_session(account_path(region))
     if not account.is_file():
         raise KindleError(tr('Run {COMMAND} login --region {region} first.', COMMAND=COMMAND, region=region))
+    if not dedrm:
+        return download_original_kfx(asin, region, account, directory or BOOKS, destination, title)
+    require_setup()
+    requested_format = {"zip": "cbz", "pdf": "auto"}.get(requested, requested)
     debug = calibre_executable("calibre-debug")
     script = (Path(sys._MEIPASS) / "kindlegarten" / "cli.py") if getattr(sys, "frozen", False) else SCRIPT
 
@@ -626,7 +688,7 @@ def login(region, state, method="browser", cli_python=None):
     print(tr('Saved the local sign-in session for {site}.', site=site))
 
 
-def download(state, asin, destination):
+def download(state, asin, destination, *, original=False):
     import httpx
     from kindl.auth import AccountStore
     from kindl.bundle import package_kfx_zip
@@ -641,7 +703,7 @@ def download(state, asin, destination):
     with amazon_client(account.credentials) as client:
         client.refresh_device_credentials()
         store.save(state)
-        if not account.credentials.account_secrets:
+        if not original and not account.credentials.account_secrets:
             try:
                 if client.restore_account_secrets():
                     store.save(state)
@@ -898,8 +960,8 @@ def worker(command, args):
             site, profile = args
             print(open_amazon_login(sys.stdin.read(), site, COMMAND, profile=Path(profile)))
         elif command == "_download":
-            state, asin, destination = args
-            download(Path(state), asin, Path(destination))
+            state, asin, destination, *options = args
+            download(Path(state), asin, Path(destination), original=bool(options))
         elif command == "_library":
             from kindlegarten.library import amazon_library_json
 
@@ -951,7 +1013,9 @@ def main():
     parser = argparse.ArgumentParser(prog=COMMAND, description=tr('Back up purchased Kindle, Comipo, and DLsite books.'))
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     commands = parser.add_subparsers(title=tr('Commands'))
-    commands.add_parser("setup", help=tr('Install Kindle export dependencies.')).set_defaults(action=setup)
+    setup_parser = commands.add_parser("setup", help=tr('Install Kindle export dependencies.'))
+    setup_parser.add_argument("--calibre-path", type=Path, metavar="PATH", help=tr("Use this Calibre installation."))
+    setup_parser.set_defaults(action=setup)
     for name, action, description in (("login", start_login, tr('Sign in to Amazon, Comipo, or DLsite.')),
                                       ("logout", logout, tr('Clear a saved local session.'))):
         subparser = commands.add_parser(name, help=description)
@@ -974,6 +1038,7 @@ def main():
     get.add_argument("-o", "--output", type=Path, metavar="PATH",
                      help=tr('Output file for a single book or parent directory for a series.'))
     get.add_argument("--format", choices=FORMATS, default="auto", help=tr("Select the output format."))
+    add_export_options(get)
     get.set_defaults(action=download_book)
 
     for kind, alias, description, output_help in (
@@ -987,6 +1052,7 @@ def main():
         subparser.add_argument("--source", choices=SOURCES, default="comipo", help=tr("Select the book source."))
         subparser.add_argument("--region", choices=MARKETPLACES, help=tr("Select the Amazon region."))
         subparser.add_argument("--format", choices=FORMATS, default="auto", help=tr("Select the output format."))
+        add_export_options(subparser)
         subparser.set_defaults(kind=kind, action=download_selection)
 
     library = commands.add_parser("library", help=tr("List purchased books and series."))
@@ -1004,12 +1070,18 @@ def main():
         parser.print_help()
         return
 
-    with project_lock():
+    with using_calibre(getattr(args, "calibre_path", None)), project_lock():
         for entry in DATA.iterdir():
             temporary_job = re.fullmatch(r"\.(?:setup|job)-[A-Za-z0-9_]{8}", entry.name)
             if temporary_job and entry.is_dir() and not entry.is_symlink():
                 shutil.rmtree(entry)
         args.action(args)
+
+
+def add_export_options(parser):
+    parser.add_argument("--calibre-path", type=Path, metavar="PATH", help=tr("Use this Calibre installation."))
+    parser.add_argument("--dedrm", action=argparse.BooleanOptionalAction, default=True,
+                        help=tr("Remove Kindle DRM by default. Use --no-dedrm to save the original .kfx-zip."))
 
 
 def initialize(checkout=None):

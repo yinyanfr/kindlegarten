@@ -1,11 +1,12 @@
 """Normalized, purchased-only library metadata."""
 
 import json
+import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode, urlsplit
 from xml.etree import ElementTree as ET
 
 PLAY_TIMEZONE = timezone(timedelta(hours=9))
@@ -17,6 +18,7 @@ class Book:
     title: str
     cover: str = ""
     purchased_at: float | None = None
+    store_url: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +27,7 @@ class Series:
     title: str
     books: tuple[Book, ...]
     cover: str = ""
+    store_url: str = ""
 
     @property
     def purchased_at(self):
@@ -36,6 +39,74 @@ class Library:
     series: tuple[Series, ...]
     books: tuple[Book, ...]
     complete: bool = True
+
+
+def store_page(entry, source, region):
+    from kindlegarten.marketplaces import MARKETPLACES
+
+    if source == "amazon":
+        host = MARKETPLACES[region].site
+    else:
+        host = "comipo.app" if source == "comipo" else "dlsite.com"
+    try:
+        link = urlsplit(entry.store_url)
+        if (link.scheme == "https" and link.netloc.lower() in {host, f"www.{host}"}
+                and link.path not in {"", "/"}):
+            return entry.store_url
+    except (ValueError, TypeError):
+        pass
+    if isinstance(entry, Series):
+        return store_page(entry.books[0], source, region) if entry.books else ""
+    identifier = quote(entry.id, safe="")
+    if source == "amazon":
+        return f"https://www.{host}/dp/{identifier}"
+    if source == "comipo":
+        return f"https://www.{host}/product/{identifier}"
+    section = {"B": "comic", "R": "home", "V": "pro"}.get(identifier[:1], "comic")
+    return f"https://www.{host}/{section}/work/=/product_id/{identifier}.html"
+
+
+def series_for_book(library, book_id):
+    if library is not None:
+        return min((group for group in library.series if any(book.id == book_id for book in group.books)),
+                   key=lambda group: group.id, default=None)
+    return None
+
+
+def task_entries(lines, library, *, source=None):
+    """Return the resolved items and the original lines that need attention."""
+    def series_key(key):
+        if source == "amazon" or re.fullmatch(r"TITLE[0-9]+", key, re.IGNORECASE):
+            return key.upper()
+        return key
+
+    books = {book.id.upper(): book for book in library.books} if library else {}
+    series = {series_key(group.id): group for group in library.series} if library else {}
+    books.update((book.id.upper(), book) for group in series.values() for book in group.books)
+    resolved, errors = [], []
+    seen_lines, seen_entries = set(), set()
+    for number, value in lines:
+        if value in seen_lines:
+            continue
+        seen_lines.add(value)
+        prefix, separator, identifier = value.partition(":")
+        kind = prefix.casefold() if separator else ""
+        key = identifier.strip() if separator else value
+        if kind not in {"", "work", "series"} or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,79}", key):
+            errors.append((number, value, "Invalid book or series ID."))
+            continue
+        book = books.get(key.upper()) if kind != "series" else None
+        group = series.get(series_key(key)) if kind != "work" else None
+        if book and group:
+            errors.append((number, value, "Use work:ID or series:ID to specify this item."))
+        elif entry := book or group:
+            identity = (type(entry), entry.id)
+            if identity not in seen_entries:
+                resolved.append(entry)
+                seen_entries.add(identity)
+        else:
+            errors.append((number, value, "ID not found in your purchased library."))
+    return resolved, errors
 
 
 def purchase_timestamp(value, default_zone=timezone.utc):
@@ -76,10 +147,10 @@ def cache_library(data, source, region, snapshot):
 def assemble(books, groups, complete=True):
     series = []
     grouped = set()
-    for identifier, title, entries, cover in groups:
+    for identifier, title, entries, cover, link in groups:
         ids = list(dict.fromkeys(entry for entry in entries if entry in books))
         if ids:
-            series.append(Series(identifier, title, tuple(books[entry] for entry in ids), cover))
+            series.append(Series(identifier, title, tuple(books[entry] for entry in ids), cover, link))
             grouped.update(ids)
     return Library(tuple(sorted(series, key=lambda item: item.title.casefold())),
                    tuple(sorted((book for key, book in books.items() if key not in grouped),
@@ -128,7 +199,8 @@ def amazon_library(fetch):
                     positions.setdefault(asin, position)
             if positions:
                 art = node.findtext("image") or (previous[3] if previous else "")
-                groups[identifier] = (identifier, title, positions, art)
+                link = node.findtext("detailPageUrl") or node.findtext("seriesUrl") or (previous[4] if previous else "")
+                groups[identifier] = (identifier, title, positions, art, link)
 
         for item in root.findall("./removal_list/*"):
             identifier = item.findtext("ASIN") or item.findtext("asin")
@@ -153,8 +225,8 @@ def amazon_library(fetch):
 
 
 def assemble_amazon(books, groups, *, complete):
-    ordered = ((identifier, title, sorted(positions, key=positions.get), image)
-               for identifier, title, positions, image in groups.values())
+    ordered = ((identifier, title, sorted(positions, key=positions.get), image, link)
+               for identifier, title, positions, image, link in groups.values())
     return assemble(books, ordered, complete)
 
 
@@ -209,7 +281,9 @@ def by_purchase(client, *, dlsite=False):
         date = item.get("purchased_at")
         if date is None:
             date = purchase_timestamp(item.get("sales_date"), PLAY_TIMEZONE)
-        books[key] = Book(key, work_title(item, key), files.get("main") or item.get("work_image") or "", date)
+        link = item.get("product_url")
+        books[key] = Book(key, work_title(item, key), files.get("main") or item.get("work_image") or "",
+                          date, link if isinstance(link, str) else "")
         series = item.get("series") or {}
         if not (identifier := series.get("title_id")):
             continue
@@ -218,14 +292,15 @@ def by_purchase(client, *, dlsite=False):
     for identifier, entries in groups.items():
         entry = metadata.get(identifier, {})
         if title := entry.get("name"):
+            link = entry.get("series_url")
             normalized.append((identifier, work_title({"name": title}, identifier),
-                               [key for _, key in sorted(entries)], ""))
+                               [key for _, key in sorted(entries)], "", link if isinstance(link, str) else ""))
     return assemble(books, normalized)
 
 
 def from_json(payload):
     return Library(
         tuple(Series(item["id"], item["title"], tuple(Book(**book) for book in item["books"]),
-                     item.get("cover", "")) for item in payload["series"]),
+                     item.get("cover", ""), item.get("store_url", "")) for item in payload["series"]),
         tuple(Book(**item) for item in payload["books"]), payload.get("complete", True),
     )

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.5.0 - 2026-11-26
+
+### Added
+
+- Mark saved books and completed series on their covers. Partially downloaded series show the number of saved volumes.
+- Add book and series context menus with download and store links, plus an action to open a series.
+- Toggle the Downloads panel from the toolbar and add tasks by pasting one book or series ID per line.
+- Add a Calibre path setting and the CLI `--calibre-path` flag. Kindle downloads can preserve the original `.kfx-zip` without Calibre by turning off DRM removal or passing `--no-dedrm`.
+- Add English and Simplified Chinese CLI quick-start guides and show the version next to the app name and in the window title.
+
+### Changed
+
+- Save individual series volumes in the same folder as the complete series. The bookshelf counts series downloads from that folder.
+- Update the app icon to a book in an archive box and refresh the README screenshots.
+- Start with the Downloads panel collapsed and open it automatically when new tasks are queued.
+
+### Fixed
+
+- Translate purchased-book counts when loading a cached library at startup.
+- Keep cover loading and download status independent so loading a cover leaves the downloaded badge accurate.
+
 ## 0.4.0 - 2026-11-26
 
 - Fix desktop multi-selection so every selected book or series enters the download queue as its own task.

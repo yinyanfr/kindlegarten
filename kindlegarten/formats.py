@@ -60,7 +60,7 @@ def already_saved(data, directory, identity, requested):
             stat = path.stat()
             if stat.st_size == info["size"] and stat.st_mtime_ns == info.get("mtime"):
                 return path
-    except (ValueError, KeyError, OSError):
+    except (ValueError, KeyError, TypeError, OSError, RuntimeError):
         pass
     return None
 

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yinyanfr/kindlegarten/main/docs/media/app-icon.png" width="112" height="112" alt="Kindlegarten app icon">
+  <img src="https://raw.githubusercontent.com/yinyanfr/kindlegarten/main/docs/media/app-icon.png" width="112" height="112" alt="Kindlegarten app icon showing a book in a green archive box">
 </p>
 
 <h1 align="center">Kindlegarten</h1>
@@ -16,6 +16,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/yinyanfr/kindlegarten/blob/main/QUICKSTART.md">CLI quick start</a> ·
   <a href="#installation">Installation</a> ·
   <a href="https://github.com/yinyanfr/kindlegarten/blob/main/CHANGELOG.md">Changelog</a> ·
   <a href="https://github.com/yinyanfr/kindlegarten/blob/main/README.zh-CN.md">简体中文</a>
@@ -52,7 +53,7 @@ python -m pip install 'kindlegarten[gui]'
 kindlegarten-gui
 ```
 
-See the [desktop build guide](https://github.com/yinyanfr/kindlegarten/blob/main/DESKTOP_BUILD.md) for platform requirements and source builds. Kindle exports use your installed Calibre.
+See the [desktop build guide](https://github.com/yinyanfr/kindlegarten/blob/main/DESKTOP_BUILD.md) for platform requirements and source builds. Converting Kindle files uses your installed Calibre.
 
 Choose **Kindle**, **Comipo** or **DLsite** in the bookshelf. For Kindle, choose your store in the second menu. If you need to sign in, select **Sign in** in the center of the bookshelf. The account icon opens the account details and sign-out controls. In the sign-in window, use the provider's browser page or select **Paste credentials** for manual import instructions.
 
@@ -60,15 +61,17 @@ The bookshelf opens from its local cache and checks for changes in the backgroun
 
 ### Queue and manage downloads
 
-Choose a destination folder and format. Hover over a cover and click the center icon to download a book or open a series. Click elsewhere on a card to select it. Hold Command on macOS or Ctrl on Windows and Linux to add individual cards, or hold Shift to select a range. Click **Download selected** to queue the selection. The download controls spin while tasks are being added.
+Choose a destination folder and format. Hover over a cover and click the center icon to download a book or open a series. Right-click a card for the download and store page actions, plus **Open** for a series. Click elsewhere on a card to select it. Hold Command on macOS or Ctrl on Windows and Linux to add individual cards, or hold Shift to select a range. Click **Download selected** to queue the selection. The download controls spin while tasks are being added.
 
-The **Downloads** panel on the right shows one task per selected book or series. Each row shows its progress and transfer speed when available. The menu at the top sets how many tasks can run at once, from 1 to 10, with a default of 3. You can keep browsing the bookshelf while downloads run.
+The **Downloads** panel opens on the right when tasks are queued. The download icon at the top right toggles it. Use the plus button to select a source or Kindle store and paste one book or series ID per line. If an ID matches both a book and a series, prefix it with `work:` or `series:`. The panel shows progress and transfer speed when available. The menu at the top sets how many tasks can run at once, from 1 to 10, with a default of 3.
 
 - **Cross** cancels a queued or active task. Files already saved stay in the destination.
 - **Circular arrows** retry a failed task with the original destination and format. The task goes to the end of the queue. Series retries skip volumes already saved in the requested format.
 - **Folder** opens the output folder after the task finishes.
 
-**Settings** controls proxy, language and appearance. The app supports English, Simplified Chinese and Japanese, with light, dark and system appearance options. **About** displays the installed version and checks for a stable GitHub release.
+Individual volumes and whole series go into the same series folder. A check mark on a cover means the book or every purchased volume in a series is saved. A number shows a partially saved series. The app checks the selected destination and counts series volumes only inside their series folder. Files copied from another device can be matched by book ID or by an unambiguous standard filename.
+
+**Settings** controls proxy, language, appearance, and the Calibre path. Leave the path blank for automatic detection. **Remove Kindle DRM** is on by default. Turn it off to save the original Kindle KFX archive without Calibre. The app supports English, Simplified Chinese and Japanese, with light, dark and system appearance options. The installed version appears next to the app name and in the window title. **About** checks for a stable GitHub release.
 
 ## CLI library and formats
 
@@ -98,14 +101,14 @@ The CLI follows the system language and falls back to English. Set `KINDLEGARTEN
 
 ## Installation
 
-You need Python 3.11 or later. Kindle downloads also require [Calibre](https://calibre-ebook.com/download) and a browser for Amazon sign-in. The CLI is designed for macOS, Windows, and Linux and has been tested on macOS.
+You need Python 3.11 or later and a browser for Amazon sign-in. Kindle conversion requires [Calibre](https://calibre-ebook.com/download). The CLI is designed for macOS, Windows, and Linux and has been tested on macOS.
 
 ```sh
 python3 -m pip install kindlegarten
-kindlegarten setup
+kindlegarten --version
 ```
 
-On Windows, use `py -3 -m pip install kindlegarten`. If your Python installation is managed by your system package manager, install kindlegarten in a virtual environment or run `pipx install kindlegarten`. Run `kindlegarten setup` once to install the components used for export.
+On Windows, use `py -3 -m pip install kindlegarten`. If your Python installation is managed by your system package manager, install Kindlegarten in a virtual environment or run `pipx install kindlegarten`. Follow the quick start for a walkthrough from installation to your first download. [CLI quick start](https://github.com/yinyanfr/kindlegarten/blob/main/QUICKSTART.md)
 
 ## Login methods
 
@@ -120,6 +123,8 @@ Running `kindlegarten login` with no options signs in to Amazon Japan. Kindlegar
 Run `kindlegarten login --help` for the full list.
 
 ## Amazon Kindle
+
+For Kindle conversion, install Calibre and run `kindlegarten setup` once.
 
 ```sh
 kindlegarten login --region jp
@@ -141,6 +146,15 @@ The browser method uses Chrome or Playwright's Chromium. If neither is installed
 kindlegarten download "https://www.amazon.co.jp/dp/B0EXAMPLE0"
 kindlegarten download B0EXAMPLE0 --output "My Book.epub"
 kindlegarten download --help
+```
+
+Use `--calibre-path PATH` with `setup`, `download`, `work` or `series` to select a Calibre installation. The path can point to the executable directory, an executable, or the macOS `calibre.app`. Without the flag, Kindlegarten checks `KINDLE_CALIBRE_BIN` and then uses automatic detection when the environment variable is unset.
+
+Kindle conversion uses `--dedrm` by default. To preserve the original archive, use `--no-dedrm` with Auto format. A custom output filename must end in `.kfx-zip`. Sign-in and original Kindle downloads work without Calibre.
+
+```sh
+kindlegarten d B0EXAMPLE0 --no-dedrm --output "My Book.kfx-zip"
+kindlegarten s SERIES_ID --source amazon --region jp --no-dedrm --output ./books
 ```
 
 By default, books are saved as `books/<title>.epub` or `books/<title>.cbz` under the current directory. If the title is missing, the filename uses the ASIN. Use `--output` to specify a filename and format. Relative paths start from the current directory. CBZ export requires pages that can be safely extracted as images. The CLI reports a conflict if the output file already exists.

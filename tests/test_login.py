@@ -34,7 +34,7 @@ class LoginOptionsTest(unittest.TestCase):
                 TemporaryDirectory() as temporary,
                 patch.dict("os.environ", {"KINDLEGARTEN_DATA_DIR": temporary}),
                 patch("sys.argv", ["kindlegarten", "login", "--region", "us", *options]),
-                patch.object(cli, "require_setup"),
+                patch.object(cli, "setup_worker_runtime"),
                 patch.object(cli, "run_worker") as worker,
             ):
                 self.assertEqual(cli.entrypoint(), 0)

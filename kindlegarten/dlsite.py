@@ -105,6 +105,7 @@ async def reader_export(client, directory, work_id, tree, key):
         destination = directory / "book.cbz"
         async with SafeFixed(reader, catalog, playfile, workno=work_id) as book:
             with ZipFile(destination, "w") as archive:
+                archive.comment = f"DLsite work:{work_id}".encode("ascii")
                 for number in range(book.page_count):
                     check_cancelled()
                     for index, path in enumerate(await book.download_page(number, directory, descramble=True)):

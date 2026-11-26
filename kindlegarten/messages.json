@@ -253,7 +253,7 @@
   },
   "Download an individual book.": {
     "ja": "本を 1 冊ダウンロードします。",
-    "zh": "下载一本 Comipo 漫画"
+    "zh": "下载一本书。"
   },
   "Download failed": {
     "ja": "ダウンロードに失敗しました",
@@ -265,7 +265,7 @@
   },
   "Download the purchased volumes of a series.": {
     "ja": "シリーズの購入済みの巻をダウンロードします。",
-    "zh": "下载 Comipo 系列的已购漫画"
+    "zh": "下载系列的已购卷册。"
   },
   "Downloading": {
     "ja": "ダウンロード中",
@@ -505,7 +505,7 @@
   },
   "Output filename (default directory: books/).": {
     "ja": "出力ファイル名（既定フォルダー: books/）。",
-    "zh": "指定 CBZ 文件，默认保存到 books/"
+    "zh": "输出文件名（默认目录为 books/）。"
   },
   "Parent directory for the series (default: books/).": {
     "ja": "シリーズの親フォルダー（既定: books/）。",
@@ -646,10 +646,6 @@
   "Select at least one book or series.": {
     "ja": "本またはシリーズを 1 件以上選択してください。",
     "zh": "请选择至少一本书或一个系列。"
-  },
-  "Select book or series cards and click Download selected. Use the menu on the right to set how many tasks run at once. Click the cross to cancel, the circular arrows to retry a failed task, or the folder to see your saved files.": {
-    "ja": "本やシリーズを選び、「選択項目をダウンロード」を押します。右側のメニューで同時実行数を設定できます。×でキャンセル、循環矢印で失敗したタスクの再試行、フォルダーで保存先の表示ができます。",
-    "zh": "选中单本或系列卡片后，点击「下载所选」。右侧菜单可设置同时下载的任务数。点击叉号可取消，点击环形箭头可重试失败任务，点击文件夹可打开保存位置。"
   },
   "Select the Amazon region.": {
     "ja": "Amazon ストアを選択します。",
@@ -1106,5 +1102,137 @@
   "{title}: {count} purchased volumes": {
     "ja": "{title}: 購入済み {count} 巻",
     "zh": "{title}：{count} 本已购卷册"
+  },
+  "Add download tasks": {
+    "ja": "ダウンロードタスクを追加",
+    "zh": "添加下载任务"
+  },
+  "Add to queue": {
+    "ja": "キューに追加",
+    "zh": "加入队列"
+  },
+  "Book or series IDs": {
+    "ja": "本やシリーズの ID",
+    "zh": "书籍或系列 ID"
+  },
+  "Calibre and Kindle DRM": {
+    "ja": "Calibre と Kindle DRM",
+    "zh": "Calibre 与 Kindle DRM"
+  },
+  "Calibre path": {
+    "ja": "Calibre のパス",
+    "zh": "Calibre 路径"
+  },
+  "Cancel": {
+    "ja": "キャンセル",
+    "zh": "取消"
+  },
+  "Choose Calibre folder": {
+    "ja": "Calibre のフォルダーを選択",
+    "zh": "选择 Calibre 文件夹"
+  },
+  "Could not refresh the purchased library: {detail}": {
+    "ja": "購入済みライブラリを更新できませんでした。{detail}",
+    "zh": "无法刷新已购书库。{detail}"
+  },
+  "Download": {
+    "ja": "ダウンロード",
+    "zh": "下载"
+  },
+  "Downloaded": {
+    "ja": "ダウンロード済み",
+    "zh": "已下载"
+  },
+  "Enter at least one book or series ID.": {
+    "ja": "本またはシリーズの ID を 1 件以上入力してください。",
+    "zh": "请输入至少一个书籍或系列 ID。"
+  },
+  "Find Calibre automatically": {
+    "ja": "Calibre を自動検出",
+    "zh": "自动查找 Calibre"
+  },
+  "ID not found in your purchased library.": {
+    "ja": "購入済みライブラリにこの ID が見つかりません。",
+    "zh": "已购书库中没有找到此 ID。"
+  },
+  "Invalid book or series ID.": {
+    "ja": "本またはシリーズの ID が無効です。",
+    "zh": "书籍或系列 ID 无效。"
+  },
+  "Line {line}: {id} — {detail}": {
+    "ja": "{line} 行目（{id}） {detail}",
+    "zh": "第 {line} 行（{id}）{detail}"
+  },
+  "Looking up IDs…": {
+    "ja": "ID を検索しています…",
+    "zh": "正在查找 ID…"
+  },
+  "No Calibre tool {binary} was found at {path}.": {
+    "ja": "{path} に Calibre の {binary} が見つかりません。",
+    "zh": "在 {path} 中找不到 Calibre 工具 {binary}。"
+  },
+  "One book or series ID per line": {
+    "ja": "1 行につき本またはシリーズの ID を 1 件",
+    "zh": "每行一个书籍或系列 ID"
+  },
+  "Open": {
+    "ja": "開く",
+    "zh": "打开"
+  },
+  "Original KFX": {
+    "ja": "元の KFX",
+    "zh": "原始 KFX"
+  },
+  "Original Kindle downloads require Auto format and a .kfx-zip output filename.": {
+    "ja": "Kindle の元ファイルを保存するには自動形式と .kfx-zip の出力ファイル名が必要です。",
+    "zh": "保存 Kindle 原始文件时需选择 Auto 格式，输出文件名须以 .kfx-zip 结尾。"
+  },
+  "Remove Kindle DRM": {
+    "ja": "Kindle の DRM を解除",
+    "zh": "去除 Kindle DRM"
+  },
+  "Remove Kindle DRM by default. Use --no-dedrm to save the original .kfx-zip.": {
+    "ja": "既定では Kindle の DRM を解除します。--no-dedrm で元の .kfx-zip を保存できます。",
+    "zh": "默认去除 Kindle DRM。用 --no-dedrm 保存原始 .kfx-zip。"
+  },
+  "Set the Calibre path in Settings or leave it blank for automatic detection. Turn off Remove Kindle DRM to save an original KFX archive without conversion.": {
+    "ja": "設定で Calibre のパスを指定するか、空欄のまま自動検出を使えます。「Kindle の DRM を解除」をオフにすると、変換せずに元の KFX アーカイブを保存します。",
+    "zh": "在设置中指定 Calibre 路径，或留空以自动查找。关闭「去除 Kindle DRM」后直接保存原始 KFX 归档。"
+  },
+  "Sign in to the selected source before adding tasks.": {
+    "ja": "タスクを追加する前に、選択したサービスにサインインしてください。",
+    "zh": "请先登录所选来源，再添加任务。"
+  },
+  "Store page": {
+    "ja": "ストアページ",
+    "zh": "商店页面"
+  },
+  "The original Kindle archive is incomplete.": {
+    "ja": "元の Kindle アーカイブが不完全です。",
+    "zh": "Kindle 原始归档不完整。"
+  },
+  "These downloads are already in the queue.": {
+    "ja": "これらのダウンロードはすでにキューにあります。",
+    "zh": "这些下载任务已在队列中。"
+  },
+  "Toggle downloads": {
+    "ja": "ダウンロードパネルの表示を切り替え",
+    "zh": "显示或收起下载栏"
+  },
+  "Use Download selected or add one ID per line with the plus button in Downloads. The top-right download icon toggles the panel. A check mark means the book or series is downloaded. A number shows how many volumes are saved in the series folder.": {
+    "ja": "「選択項目をダウンロード」を使うか、ダウンロードパネルの＋から 1 行につき 1 件の ID を追加できます。右上のダウンロードアイコンでパネルの表示を切り替えます。チェックはダウンロード済み、数字はシリーズフォルダーに保存した巻数です。",
+    "zh": "可用「下载所选」，或点击下载栏的加号逐行输入 ID。右上角的下载图标可显示或收起下载栏。对钩表示单本或系列已下载，数字表示系列目录中已保存的卷数。"
+  },
+  "Use this Calibre installation.": {
+    "ja": "指定した Calibre を使います。",
+    "zh": "使用指定的 Calibre 安装路径。"
+  },
+  "Use work:ID or series:ID to specify this item.": {
+    "ja": "work:ID または series:ID で項目を指定してください。",
+    "zh": "请用 work:ID 或 series:ID 指定项目。"
+  },
+  "{count} of {total} books downloaded": {
+    "ja": "{total} 冊のうち {count} 冊をダウンロード済み",
+    "zh": "已下载 {count}／{total} 本"
   }
 }

@@ -13,10 +13,14 @@ from PIL import Image
 from pikepdf import Pdf
 
 from kindlegarten import cli, comipo, updates
-from kindlegarten.desktop_download import DownloadRequest, run_download
+from kindlegarten.desktop_download import DownloadRequest, run_download, series_directory
 from kindlegarten.formats import already_saved, convert, publish_export, save_export, selected_format
 from kindlegarten.i18n import LANGUAGE
-from kindlegarten.library import Book, Library, Series, amazon_library, by_purchase, cache_library, cached_library, purchase_timestamp
+from kindlegarten.library import (
+    Book, Library, Series, amazon_library, by_purchase, cache_library, cached_library, purchase_timestamp,
+    series_for_book, store_page, task_entries,
+)
+from kindlegarten.local_downloads import scan_downloads
 from kindlegarten.network import browser_proxy, using_proxy
 from kindlegarten.progress import DownloadCancelled, download_session
 
@@ -170,6 +174,58 @@ class ExportTest(unittest.TestCase):
             self.assertIsNone(already_saved(root, folder, "source:book", "pdf"))
 
 
+class ShelfDownloadsTest(unittest.TestCase):
+    def test_badges_require_series_files_and_unique_names(self):
+        one = Book("BJ123456", "One")
+        two = Book("BJ123457", "Two")
+        series = Series("TITLE1", "Name / Series", (one, two))
+        solo = Book("BJ123458", "Standalone")
+        same_a = Book("BJ123459", "Same")
+        same_b = Book("BJ123460", "Same")
+        library = Library((series,), (solo, same_a, same_b))
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            folder = root / "books"
+            directory = series_directory(folder, series)
+            directory.mkdir(parents=True)
+            self.assertEqual(DownloadRequest("comipo", "jp", one, folder, "auto", series=series).directory, directory)
+            self.assertEqual(DownloadRequest("comipo", "jp", series, folder, "auto").directory, directory)
+
+            def keys():
+                return scan_downloads(root, folder, library, "comipo", "jp")[0]
+
+            pdf = b"%PDF-1.4\n%%EOF\n"
+            (folder / "One.pdf").write_bytes(pdf)
+            (folder / "Standalone.pdf").write_bytes(pdf)
+            (folder / "Same.pdf").write_bytes(pdf)
+            (directory / "One.pdf").write_bytes(b"incomplete")
+            self.assertEqual(keys(), {(None, solo.id)})
+            with ZipFile(directory / "Moved.cbz", "w") as archive:
+                archive.comment = b"Comipo work:BJ123456"
+                archive.writestr("page.jpg", b"page")
+            self.assertEqual(keys(), {(None, solo.id), (series.id, one.id)})
+            (directory / "One.pdf").write_bytes(pdf)
+            (directory / "Two.pdf").write_bytes(pdf)
+            self.assertEqual(keys(), {(None, solo.id), (series.id, one.id), (series.id, two.id)})
+            (directory / "Two.pdf").unlink()
+            self.assertEqual(keys(), {(None, solo.id), (series.id, one.id)})
+
+    def test_manual_id_order_and_ambiguous_targets(self):
+        first = Book("B012345678", "A title")
+        group = Series(first.id, "Same ID", (first,))
+        another = Series("A012345678", "Another series", (first,), store_url="https://www.amazon.co.jp/dp/A012345678")
+        library = Library((group, another), ())
+        drafts = ["B012345678", "work:B012345678", "work:b012345678", "series:B012345678", "B000000000",
+                  "https://evil.test"]
+        entries, errors = task_entries(list(enumerate(drafts, 1)), library, source="amazon")
+        self.assertEqual(entries, [first, group])
+        self.assertEqual([number for number, _, _ in errors], [1, 5, 6])
+        self.assertEqual(series_for_book(library, first.id), another)
+        self.assertEqual(store_page(group, "amazon", "jp"), "https://www.amazon.co.jp/dp/B012345678")
+        self.assertEqual(store_page(another, "amazon", "jp"), another.store_url)
+        self.assertEqual(store_page(another, "amazon", "uk"), "https://www.amazon.co.uk/dp/B012345678")
+
+
 class CommandsTest(unittest.TestCase):
     def test_download_infers_an_additional_store_from_product_url(self):
         with (
@@ -179,7 +235,55 @@ class CommandsTest(unittest.TestCase):
             patch.object(cli, "download_amazon") as download,
         ):
             self.assertEqual(cli.entrypoint(), 0)
-            download.assert_called_once_with("B012345678", "uk", None, "auto")
+            download.assert_called_once_with("B012345678", "uk", None, "auto", dedrm=True)
+
+    def test_no_dedrm_saves_the_original_archive_without_calibre(self):
+        for command in ("d", "w", "s"):
+            with self.subTest(command=command), TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                target = root / ("books" if command == "s" else "backup.kfx-zip")
+                volume = Book("B012345678", "A title")
+                series = Series("Group", "A series", (volume,))
+                payload = b"original encrypted bytes"
+
+                def raw_worker(action, account, asin, archive, mode):
+                    self.assertEqual((action, account, asin, mode),
+                                     ("_download", root / "account-jp.json", volume.id, "original"))
+                    with ZipFile(archive, "w") as bundle:
+                        bundle.writestr("book.azw8", payload)
+
+                (root / "account-jp.json").touch()
+                identifier = series.id if command == "s" else volume.id
+                args = [command, identifier, "--source", "amazon", "--no-dedrm", "--output", str(target)]
+                with (
+                    patch.dict(os.environ, {"KINDLEGARTEN_DATA_DIR": temporary}),
+                    patch("sys.argv", ["kindlegarten", *args]),
+                    patch.object(cli, "setup_worker_runtime"),
+                    patch.object(cli, "read_library", return_value=Library((series,), ())),
+                    patch.object(cli, "calibre_executable", side_effect=AssertionError("Calibre must be skipped")),
+                    patch.object(cli, "run_worker", side_effect=raw_worker),
+                    redirect_stdout(io.StringIO()),
+                ):
+                    self.assertEqual(cli.entrypoint(), 0)
+                output = target / series.title / "A title.kfx-zip" if command == "s" else target
+                with ZipFile(output) as bundle:
+                    self.assertEqual(bundle.read("book.azw8"), payload)
+                self.assertEqual(already_saved(root, output.parent, f"amazon:jp:{volume.id}", "kfx-zip"), output)
+                self.assertIsNone(already_saved(root, output.parent, f"amazon:jp:{volume.id}", "auto"))
+
+    def test_calibre_override_precedes_environment_and_is_scoped(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            binary = "calibre-debug.exe" if os.name == "nt" else "calibre-debug"
+            path = root / "calibre.app" / "Contents" / "MacOS" / binary
+            path.parent.mkdir(parents=True)
+            path.touch()
+            with patch.dict(os.environ, {"KINDLE_CALIBRE_BIN": str(root / "missing")}):
+                for value in (path, path.parent, root / "calibre.app"):
+                    with cli.using_calibre(value):
+                        self.assertEqual(cli.calibre_executable("calibre-debug"), path)
+                with self.assertRaises(cli.KindleError):
+                    cli.calibre_executable("calibre-debug")
 
     def test_library_accepts_an_additional_store(self):
         with (
@@ -199,6 +303,8 @@ class CommandsTest(unittest.TestCase):
                 self.assertEqual(cli.entrypoint(), 0)
                 self.assertIn("使用法:", output.getvalue())
                 self.assertIn("--format", output.getvalue())
+                self.assertIn("--no-dedrm", output.getvalue())
+                self.assertIn("--calibre-path", output.getvalue())
         finally:
             LANGUAGE.reset(token)
 

@@ -7,11 +7,14 @@ from functools import partial
 from pathlib import Path
 from threading import Event, Lock
 
-from PySide6.QtCore import QCollator, QEvent, QPersistentModelIndex, QRect, QRectF, QPointF, QLocale, QObject, QRunnable, QSettings, QSize, Qt, QThreadPool, QTimer, QUrl, Signal
+from PySide6.QtCore import (
+    QCollator, QEvent, QFileSystemWatcher, QPersistentModelIndex, QRect, QRectF, QPointF, QLocale,
+    QObject, QRunnable, QSettings, QSize, Qt, QThreadPool, QTimer, QUrl, Signal,
+)
 from PySide6.QtGui import QActionGroup, QColor, QDesktopServices, QIcon, QPainter, QPainterPath, QPalette, QPen, QPixmap, QPolygonF, QTextLayout
 from PySide6.QtWidgets import (
-    QAbstractItemView, QApplication, QButtonGroup, QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout,
-    QLabel, QLineEdit, QListView, QListWidget, QListWidgetItem, QMainWindow, QMenu, QProgressBar, QPushButton, QScrollArea,
+    QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout,
+    QLabel, QLineEdit, QListView, QListWidget, QListWidgetItem, QMainWindow, QMenu, QPlainTextEdit, QProgressBar, QPushButton, QScrollArea,
     QStackedWidget, QStyle, QStyledItemDelegate, QTextBrowser, QVBoxLayout, QWidget,
 )
 
@@ -22,13 +25,17 @@ from kindlegarten.comipo import COMIPO, DLSITE, import_session, login, saved_acc
 from kindlegarten.desktop_download import DownloadRequest, run_download
 from kindlegarten.formats import FORMATS
 from kindlegarten.i18n import LANGUAGE, SUPPORTED, tr
-from kindlegarten.library import Series, cache_library, cached_library
+from kindlegarten.library import Book, Series, cache_library, cached_library, series_for_book, store_page, task_entries
+from kindlegarten.local_downloads import folder_stamps, scan_downloads
 from kindlegarten.marketplaces import MARKETPLACES
 from kindlegarten.network import proxy_address, using_proxy
 from kindlegarten.progress import PROGRESS, STATUS, DownloadCancelled
 from kindlegarten.updates import REPOSITORY, check_for_update
 
 ROLE = Qt.ItemDataRole.UserRole
+CAPTION_ROLE = ROLE + 1
+DOWNLOADED_ROLE = ROLE + 2
+COVER_LOADED_ROLE = ROLE + 3
 APP_ICON = Path(__file__).with_name("app-icon.png")
 PROVIDERS = {"amazon": "Kindle", "comipo": "Comipo", "dlsite": "DLsite"}
 # Older builds saved a single index for both the provider and the Kindle store.
@@ -44,7 +51,8 @@ GUIDE = (
     ("Paste credentials", "Amazon uses the final redirect URL. Comipo and DLsite use the Cookie request header from Play or a session JSON file."),
     ("Your bookshelf", "Choose a source. For Kindle, choose your store. Open a series to select individual volumes, or select the whole series."),
     ("Export", "Choose a folder and a format. Auto picks EPUB for text and CBZ for comics. ZIP holds the same comic page archive as CBZ."),
-    ("Downloads", "Select book or series cards and click Download selected. Use the menu on the right to set how many tasks run at once. Click the cross to cancel, the circular arrows to retry a failed task, or the folder to see your saved files."),
+    ("Downloads", "Use Download selected or add one ID per line with the plus button in Downloads. The top-right download icon toggles the panel. A check mark means the book or series is downloaded. A number shows how many volumes are saved in the series folder."),
+    ("Calibre and Kindle DRM", "Set the Calibre path in Settings or leave it blank for automatic detection. Turn off Remove Kindle DRM to save an original KFX archive without conversion."),
     ("Proxy", "Open Settings to choose system, direct, or custom routing. Kindle exports require Calibre."),
     ("Command line", "Run kindlegarten help for commands, or kindlegarten library to list purchased books."),
 )
@@ -103,6 +111,10 @@ def button(text, action=None, *, primary=False):
 GLYPHS = {
     "back": (((11, 5), (4, 12), (11, 19)), ((4, 12), (20, 12))),
     "download": (((12, 3), (12, 15)), ((7, 10), (12, 15), (17, 10)), ((4, 17), (4, 20), (20, 20), (20, 17))),
+    "add": (((5, 12), (19, 12)), ((12, 5), (12, 19))),
+    "external": (((13, 4), (20, 4), (20, 11)), ((20, 4), (11, 13)),
+                 ((10, 5), (5, 5), (5, 19), (19, 19), (19, 14))),
+    "check": (((5, 12), (10, 17), (19, 7)),),
     "folder": (((3, 19), (3, 5), (9, 5), (12, 8), (21, 8), (21, 19), (3, 19)),),
     "open-folder": (((3, 19), (3, 5), (9, 5), (12, 8), (20, 8), (20, 11)),
                     ((3, 19), (7, 11), (22, 11), (19, 19), (3, 19))),
@@ -189,46 +201,62 @@ def heading(text, role):
 
 class BookshelfGrid(QListWidget):
     action_requested = Signal(QListWidgetItem)
+    menu_requested = Signal(QListWidgetItem, object)
+    action_radius = 28
 
     def __init__(self):
         super().__init__()
         self.setMouseTracking(True)
         self.hovered = QPersistentModelIndex()
+        self.hot = QPersistentModelIndex()
         self.pressed = QPersistentModelIndex()
+        self.pointer = None
         self.pending = set()
         self.spinner_angle = 0
 
-    def set_hovered(self, index=None):
+    def action_at(self, index, position):
+        entry = index.data(ROLE)
+        if entry is None or entry.id in self.pending:
+            return False
+        delta = position - BookTile.cover_rect(self.visualRect(index), entry).center()
+        return delta.x() ** 2 + delta.y() ** 2 <= self.action_radius ** 2
+
+    def refresh_pointer(self):
+        index = self.indexAt(self.pointer) if self.pointer is not None else None
         hovered = QPersistentModelIndex(index) if index is not None else QPersistentModelIndex()
-        if self.hovered != hovered:
-            self.hovered = hovered
+        hot = hovered if index is not None and self.action_at(index, self.pointer) else QPersistentModelIndex()
+        if self.hovered != hovered or self.hot != hot:
+            self.hovered, self.hot = hovered, hot
             self.viewport().update()
+        self.viewport().setCursor(Qt.CursorShape.PointingHandCursor if hot.isValid() else Qt.CursorShape.ArrowCursor)
+
+    def clear_hover(self):
+        self.pointer = None
+        self.refresh_pointer()
 
     def mouseMoveEvent(self, event):
-        self.set_hovered(self.indexAt(event.position().toPoint()))
+        self.pointer = event.position().toPoint()
+        self.refresh_pointer()
         super().mouseMoveEvent(event)
 
     def viewportEvent(self, event):
         if event.type() == QEvent.Type.Leave:
-            self.set_hovered()
+            self.clear_hover()
         return super().viewportEvent(event)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton and not event.modifiers():
             position = event.position().toPoint()
             index = self.indexAt(position)
-            entry = index.data(ROLE)
-            if entry is not None and entry.id not in self.pending:
-                center = BookTile.cover_rect(self.visualRect(index), entry).center()
-                delta = position - center
-                if delta.x() ** 2 + delta.y() ** 2 <= 28 ** 2:
-                    self.pressed = QPersistentModelIndex(index)
+            if self.action_at(index, position):
+                self.pressed = QPersistentModelIndex(index)
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
-        index = self.indexAt(event.position().toPoint())
+        position = event.position().toPoint()
+        index = self.indexAt(position)
         activate = (event.button() == Qt.MouseButton.LeftButton and not event.modifiers()
-                    and index.isValid() and self.pressed == index)
+                    and index.isValid() and self.pressed == index and self.action_at(index, position))
         self.pressed = QPersistentModelIndex()
         super().mouseReleaseEvent(event)
         if activate:
@@ -247,6 +275,15 @@ class BookshelfGrid(QListWidget):
             self.action_requested.emit(self.currentItem())
         else:
             super().keyPressEvent(event)
+
+    def contextMenuEvent(self, event):
+        if event.reason() == event.Reason.Keyboard:
+            item = self.currentItem()
+            if item is not None:
+                self.menu_requested.emit(item, self.viewport().mapToGlobal(self.visualItemRect(item).center()))
+        elif item := self.itemAt(event.pos()):
+            self.menu_requested.emit(item, event.globalPos())
+        event.accept()
 
 
 class BookTile(QStyledItemDelegate):
@@ -295,8 +332,9 @@ class BookTile(QStyledItemDelegate):
         if pending or self.parent().hovered == index:
             center = QPointF(front.center())
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QColor(17, 40, 34, 170))
-            painter.drawEllipse(center, 28, 28)
+            painter.setBrush(QColor(17, 40, 34, 205 if not pending and self.parent().hot == index else 170))
+            radius = self.parent().action_radius
+            painter.drawEllipse(center, radius, radius)
             if pending:
                 paint_spinner(painter, QRectF(center.x() - 14, center.y() - 14, 28, 28), self.parent().spinner_angle)
             else:
@@ -321,11 +359,27 @@ class BookTile(QStyledItemDelegate):
         baseline = image.bottom() + 8
         title.draw(painter, QPointF(bounds.left() + 8, baseline))
         if isinstance(book, Series):
-            caption = index.data(ROLE + 1)
+            caption = index.data(CAPTION_ROLE)
             color.setAlpha(175)
             painter.setPen(color)
             painter.drawText(QRect(bounds.left() + 8, round(baseline + offset) + 3, bounds.width() - 16, 20),
                              Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, caption)
+        downloaded = index.data(DOWNLOADED_ROLE)
+        if downloaded:
+            done = not isinstance(book, Series) or downloaded == len(book.books)
+            marker = "" if done else str(downloaded)
+            width = max(23, 11 + option.fontMetrics.horizontalAdvance(marker))
+            badge = QRectF(front.right() - width - 2, front.bottom() - 24, width, 21)
+            painter.setPen(QPen(palette.color(QPalette.ColorRole.Base), 1))
+            painter.setBrush(palette.color(QPalette.ColorRole.Highlight))
+            painter.drawRoundedRect(badge, 10.5, 10.5)
+            if done:
+                painter.translate(badge.center() - QPointF(8, 8))
+                painter.scale(16 / 24, 16 / 24)
+                paint_glyph(painter, "check", "#ffffff")
+            else:
+                painter.setPen(QColor("#ffffff"))
+                painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, marker)
         painter.restore()
 
 
@@ -354,6 +408,15 @@ class SettingsDialog(QDialog):
         self.username = QLineEdit(window.settings.value("proxy_username", ""))
         self.password = QLineEdit(window.proxy_password)
         self.password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.calibre = QLineEdit(window.settings.value("calibre_path", ""))
+        self.calibre.setPlaceholderText(tr("Find Calibre automatically"))
+        path_row = QHBoxLayout()
+        path_row.addWidget(self.calibre, 1)
+        browse = icon_button("Choose Calibre folder", "folder", self.choose_calibre)
+        browse.setIcon(action_icon("folder", self.palette().color(QPalette.ColorRole.ButtonText)))
+        path_row.addWidget(browse)
+        self.dedrm = QCheckBox(tr("Remove Kindle DRM"))
+        self.dedrm.setChecked(window.settings.value("dedrm", True, type=bool))
         self.status = QLabel()
         self.status.setWordWrap(True)
         form.addRow(tr("Language"), self.locale)
@@ -362,9 +425,16 @@ class SettingsDialog(QDialog):
         form.addRow(tr("Proxy address"), self.address)
         form.addRow(tr("Proxy username"), self.username)
         form.addRow(tr("Proxy password"), self.password)
+        form.addRow(tr("Calibre path"), path_row)
+        form.addRow(self.dedrm)
         form.addRow(self.status)
         form.addRow(button("Save settings", self.apply, primary=True))
         self.resize(440, self.sizeHint().height())
+
+    def choose_calibre(self):
+        path = QFileDialog.getExistingDirectory(self, tr("Choose Calibre folder"), self.calibre.text())
+        if path:
+            self.calibre.setText(path)
 
     def apply(self):
         from urllib.parse import quote, urlsplit
@@ -386,9 +456,20 @@ class SettingsDialog(QDialog):
             except ValueError:
                 self.status.setText(tr("Enter a valid proxy address."))
                 return
+        calibre = self.calibre.text().strip()
+        if calibre:
+            calibre = str(Path(calibre).expanduser().absolute())
+            try:
+                with cli.using_calibre(calibre):
+                    for command in ("calibre-debug", "calibre-customize", "ebook-convert"):
+                        cli.calibre_executable(command)
+            except cli.KindleError as error:
+                self.status.setText(str(error))
+                return
         for key, value in (
             ("language", self.locale.currentData()), ("theme", self.theme.currentData()),
             ("proxy_mode", mode), ("proxy_address", address), ("proxy_username", self.username.text()),
+            ("calibre_path", calibre), ("dedrm", self.dedrm.isChecked()),
         ):
             self.window.settings.setValue(key, value)
         self.window.proxy_password = self.password.text()
@@ -623,6 +704,135 @@ class DownloadRow(QWidget):
             self.action.setIcon(action_icon(glyph, self.palette().color(QPalette.ColorRole.ButtonText)))
 
 
+class AddDownloadsDialog(QDialog):
+    def __init__(self, window):
+        super().__init__(window)
+        self.window = window
+        self.busy = False
+        source, region, _ = window.provider()
+        self.setWindowTitle(tr("Add download tasks"))
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 22, 24, 22)
+        layout.setSpacing(12)
+        fields = QFormLayout()
+        self.source = MenuField()
+        for code, name in PROVIDERS.items():
+            self.source.addItem(name, code)
+        self.source.setCurrentIndex(self.source.findData(source))
+        fields.addRow(tr("Source"), self.source)
+        self.market = MenuField()
+        for code, market in MARKETPLACES.items():
+            self.market.addItem(tr(market.name), code)
+        saved_market = window.marketplace.currentData() if source != "amazon" else region
+        self.market.setCurrentIndex(self.market.findData(saved_market))
+        self.market_label = QLabel(tr("Kindle store"))
+        fields.addRow(self.market_label, self.market)
+        self.source.currentIndexChanged.connect(self.change_source)
+        layout.addLayout(fields)
+        self.ids = QPlainTextEdit()
+        self.ids.setPlaceholderText(tr("One book or series ID per line"))
+        self.ids.setAccessibleName(tr("Book or series IDs"))
+        layout.addWidget(self.ids, 1)
+        self.status = heading("", "muted")
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(self.status)
+        scroll.setMaximumHeight(112)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.feedback = scroll
+        self.feedback.hide()
+        layout.addWidget(scroll)
+        actions = QHBoxLayout()
+        actions.addStretch(1)
+        self.cancel = button("Cancel", self.reject)
+        self.submit_button = button("Add to queue", self.submit, primary=True)
+        actions.addWidget(self.cancel)
+        actions.addWidget(self.submit_button)
+        layout.addLayout(actions)
+        self.change_source()
+        self.resize(460, 360)
+        self.ids.setFocus()
+
+    def change_source(self):
+        kindle = self.source.currentData() == "amazon"
+        self.market_label.setVisible(kindle)
+        self.market.setVisible(kindle)
+
+    def inform(self, message):
+        self.status.setText(message)
+        self.feedback.setVisible(bool(message))
+
+    def set_busy(self, busy):
+        self.busy = busy
+        for widget in (self.source, self.market, self.ids, self.cancel, self.submit_button):
+            widget.setEnabled(not busy)
+
+    def reject(self):
+        if not self.busy:
+            super().reject()
+
+    def submit(self):
+        lines = [(number, line.strip()) for number, line in enumerate(self.ids.toPlainText().splitlines(), 1)
+                 if line.strip()]
+        if not lines:
+            self.inform(tr("Enter at least one book or series ID."))
+            return
+        window = self.window
+        source = self.source.currentData()
+        region = self.market.currentData() if source == "amazon" else "jp"
+        if not window.location.text().strip():
+            self.inform(tr("Choose a destination folder first."))
+            return
+        if not window.saved_session_path(source, region).is_file():
+            self.inform(tr("Sign in to the selected source before adding tasks."))
+            return
+        current = window.library if window.provider()[:2] == (source, region) else None
+        self.set_busy(True)
+        self.inform(tr("Looking up IDs…"))
+
+        def resolve():
+            library = current or cached_library(cli.DATA, source, region)
+            entries, errors = task_entries(lines, library, source=source)
+            if any(reason == "ID not found in your purchased library." for _, _, reason in errors):
+                try:
+                    snapshot = window.read_purchases(source, region)
+                except Exception as error:
+                    message = str(error) if isinstance(error, cli.KindleError) else tr(
+                        "The operation failed. Check the connection, account, or destination.")
+                    return library, entries, [
+                        (number, text, tr("Could not refresh the purchased library: {detail}", detail=message))
+                        if reason == "ID not found in your purchased library." else (number, text, reason)
+                        for number, text, reason in errors
+                    ]
+                if snapshot.complete or library is None or not library.complete:
+                    library = snapshot
+                entries, errors = task_entries(lines, library, source=source)
+                if not snapshot.complete:
+                    errors = [(number, text, "The service did not return the complete library.")
+                              if reason == "ID not found in your purchased library." else (number, text, reason)
+                              for number, text, reason in errors]
+            return library, entries, errors
+
+        def ready(result):
+            library, entries, errors = result
+            count = window.queue_requests(window.make_requests(entries, source, region, library))
+            self.set_busy(False)
+            if errors:
+                self.ids.setPlainText("\n".join(text for _, text, _ in errors))
+                self.inform("\n".join(tr("Line {line}: {id} — {detail}", line=number, id=text, detail=tr(reason))
+                                      for number, text, reason in errors))
+            elif count:
+                self.accept()
+            else:
+                self.inform(tr("These downloads are already in the queue."))
+
+        def failed(message):
+            self.set_busy(False)
+            self.inform(message)
+
+        window.run(resolve, ready, failed)
+
+
 class Window(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -636,6 +846,7 @@ class Window(QMainWindow):
         self.jobs = set()
         self.downloads = []
         self.download_rows = {}
+        self.downloads_visible = False
         self.enqueueing = set()
         self.pending_cards = set()
         self.bulk_starting = False
@@ -651,13 +862,29 @@ class Window(QMainWindow):
         self.covers_requested = set()
         self.cover_misses = set()
         self.library_revision = 0
+        self.downloaded = set()
+        self.scan_revision = 0
+        self.scan_active = False
+        self.watched_stamps = {}
+        self.folder_watcher = QFileSystemWatcher(self)
+        self.folder_watcher.directoryChanged.connect(self.schedule_download_scan)
+        self.scan_timer = QTimer(self, singleShot=True, interval=160)
+        self.scan_timer.timeout.connect(self.scan_download_folder)
+        self.folder_poll = QTimer(self, interval=2000)
+        self.folder_poll.timeout.connect(lambda: self.scan_download_folder(poll=True))
+        self.folder_poll.start()
+        QApplication.instance().applicationStateChanged.connect(self.application_state_changed)
         self.resize(1240, 760)
         self.setMinimumSize(920, 530)
-        self.setWindowTitle("Kindlegarten")
+        self.setWindowTitle(f"Kindlegarten v{__version__}")
         self.setWindowIcon(QIcon(str(APP_ICON)))
-        self.build()
-        self.load_cached_library()
-        self.apply_appearance()
+        token = LANGUAGE.set(self.locale())
+        try:
+            self.build()
+            self.load_cached_library()
+            self.apply_appearance()
+        finally:
+            LANGUAGE.reset(token)
         QApplication.styleHints().colorSchemeChanged.connect(self.apply_appearance)
 
     def locale(self):
@@ -704,6 +931,7 @@ class Window(QMainWindow):
             brand_icon.setPixmap(self.windowIcon().pixmap(QSize(29, 29)))
             nav.addWidget(brand_icon)
             nav.addWidget(heading("Kindlegarten", "brand"))
+            nav.addWidget(heading(f"v{__version__}", "versionTag"), alignment=Qt.AlignmentFlag.AlignVCenter)
             nav.addSpacing(14)
             tabs = QButtonGroup(shell)
             for index, title in enumerate(("Bookshelf", "Guide", "About")):
@@ -713,6 +941,10 @@ class Window(QMainWindow):
                 tabs.addButton(tab, index)
                 nav.addWidget(tab)
             nav.addStretch()
+            self.download_toggle = icon_button("Toggle downloads", "download", self.set_downloads_visible)
+            self.download_toggle.setCheckable(True)
+            self.download_toggle.setChecked(self.downloads_visible)
+            nav.addWidget(self.download_toggle)
             nav.addWidget(icon_button("Settings", "settings", self.open_settings))
             outer.addLayout(nav)
 
@@ -726,7 +958,9 @@ class Window(QMainWindow):
             body = QHBoxLayout()
             body.setSpacing(22)
             body.addWidget(self.pages, 1)
-            body.addWidget(self.download_panel())
+            self.download_area = self.download_panel()
+            self.download_area.setVisible(self.downloads_visible)
+            body.addWidget(self.download_area)
             outer.addLayout(body, 1)
             self.setCentralWidget(shell)
             self.update_starting()
@@ -788,7 +1022,7 @@ class Window(QMainWindow):
         self.back = icon_button("Back to bookshelf", "back", self.leave_series)
         self.back.hide()
         layout.addWidget(self.back, alignment=Qt.AlignmentFlag.AlignLeft)
-        self.status = heading("Choose a source and refresh to see your purchases.", "muted")
+        self.status = heading("Choose a source and refresh to see your purchases." if self.library is None else "", "muted")
         layout.addWidget(self.status)
         self.grid = BookshelfGrid()
         self.grid.setViewMode(QListView.ViewMode.IconMode)
@@ -801,7 +1035,9 @@ class Window(QMainWindow):
         self.grid.setWordWrap(True)
         self.grid.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.grid.action_requested.connect(self.open_item)
+        self.grid.menu_requested.connect(self.open_card_menu)
         self.grid.verticalScrollBar().valueChanged.connect(self.queue_covers)
+        self.grid.verticalScrollBar().valueChanged.connect(self.grid.refresh_pointer)
         self.shelf_stack = QStackedWidget()
         self.shelf_stack.addWidget(self.grid)
         sign_in_page = QWidget()
@@ -816,6 +1052,7 @@ class Window(QMainWindow):
         self.location = QLineEdit(self.settings.value("destination", str(Path.home() / "Downloads" / "Kindlegarten")))
         self.location.setPlaceholderText(tr("Destination folder"))
         self.location.setAccessibleName(tr("Destination folder"))
+        self.location.textChanged.connect(self.destination_changed)
         footer.addWidget(self.location, 1)
         footer.addWidget(icon_button("Choose folder", "folder", self.choose_folder))
         self.format = MenuField()
@@ -824,11 +1061,17 @@ class Window(QMainWindow):
         for option in FORMATS:
             self.format.addItem(tr("Auto") if option == "auto" else option.upper(), option)
         footer.addWidget(self.format)
+        self.original_format = heading("Original KFX", "originalFormat")
+        footer.addWidget(self.original_format)
         self.download_button = button("Download selected", lambda: self.download(), primary=True)
         self.download_button.setProperty("glyph", "download")
         self.download_button.setIconSize(QSize(17, 17))
         footer.addWidget(self.download_button)
         layout.addLayout(footer)
+        self.shelf_download_notice = heading("", "muted")
+        self.shelf_download_notice.hide()
+        layout.addWidget(self.shelf_download_notice)
+        self.update_format()
         self.render_library()
         return page
 
@@ -840,7 +1083,10 @@ class Window(QMainWindow):
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(18, 9, 0, 0)
         layout.setSpacing(12)
-        layout.addWidget(heading("Downloads", "downloadHeading"))
+        title = QHBoxLayout()
+        title.addWidget(heading("Downloads", "downloadHeading"), 1)
+        title.addWidget(icon_button("Add download tasks", "add", self.add_downloads))
+        layout.addLayout(title)
         settings = QHBoxLayout()
         settings.addWidget(heading("Concurrent downloads", "muted"), 1)
         self.limit = MenuField()
@@ -872,6 +1118,14 @@ class Window(QMainWindow):
         self.download_scroll.setWidget(rows)
         layout.addWidget(self.download_scroll, 1)
         return panel
+
+    def set_downloads_visible(self, visible):
+        self.downloads_visible = visible
+        self.download_area.setVisible(visible)
+        self.download_toggle.setChecked(visible)
+
+    def add_downloads(self):
+        AddDownloadsDialog(self).exec()
 
     def add_download_row(self, task):
         row = DownloadRow(task, lambda: self.download_action(task))
@@ -921,6 +1175,7 @@ class Window(QMainWindow):
         self.settings.setValue("kindle_region", self.marketplace.currentData())
         self.marketplace.setVisible(source == "amazon")
         self.series = None
+        self.update_format()
         self.load_cached_library()
         self.update_starting()
         self.refresh(silent=True)
@@ -934,15 +1189,30 @@ class Window(QMainWindow):
         source, region, _ = self.provider()
         self.needs_sign_in = not self.saved_session_path(source, region).is_file()
         self.library = None if self.needs_sign_in else cached_library(cli.DATA, source, region)
+        self.downloaded.clear()
         self.status.clear()
         self.render_library()
+        self.schedule_download_scan()
 
     def show_sign_in(self):
         self.needs_sign_in = True
         self.library = None
         self.series = None
+        self.downloaded.clear()
         self.status.clear()
         self.render_library()
+        self.schedule_download_scan()
+
+    def read_purchases(self, source, region):
+        with self.operation_lock, cli.project_lock():
+            snapshot = cli.read_library(source, region)
+            if snapshot.complete and snapshot != cached_library(cli.DATA, source, region):
+                try:
+                    cache_library(cli.DATA, source, region, snapshot)
+                except OSError:
+                    # The live library remains usable when the cache cannot be written.
+                    pass
+            return snapshot
 
     def refresh(self, *, silent=False):
         source, region, _ = self.provider()
@@ -987,6 +1257,7 @@ class Window(QMainWindow):
                 if self.series is not None:
                     self.series = next((group for group in snapshot.series if group.id == self.series.id), None)
                 self.render_library(preserve=True)
+            self.schedule_download_scan()
             self.status.setText(tr("The service did not return the complete library.") if not snapshot.complete
                                 else tr("No purchased books found.") if not snapshot.series and not snapshot.books else "")
             self.queue_covers()
@@ -996,18 +1267,10 @@ class Window(QMainWindow):
                 self.status.setText(message)
 
         def load():
-            with self.operation_lock, cli.project_lock():
-                try:
-                    snapshot = cli.read_library(source, region)
-                except cli.SignInRequired:
-                    return None
-                if snapshot.complete and snapshot != cached_library(cli.DATA, source, region):
-                    try:
-                        cache_library(cli.DATA, source, region, snapshot)
-                    except OSError:
-                        # The live library remains usable when the cache cannot be written.
-                        pass
-                return snapshot
+            try:
+                return self.read_purchases(source, region)
+            except cli.SignInRequired:
+                return None
         self.run(load, opened, rejected)
 
     def sort_order(self):
@@ -1039,6 +1302,82 @@ class Window(QMainWindow):
             entries.sort(key=lambda item: (item.purchased_at is None, direction * (item.purchased_at or 0)))
         return entries
 
+    def update_format(self):
+        original = self.source.currentData() == "amazon" and not self.settings.value("dedrm", True, type=bool)
+        self.format.setVisible(not original)
+        self.original_format.setVisible(original)
+
+    def destination_changed(self):
+        self.downloaded.clear()
+        self.update_download_badges()
+        self.schedule_download_scan()
+
+    def application_state_changed(self, state):
+        if state == Qt.ApplicationState.ApplicationActive:
+            self.schedule_download_scan()
+
+    def schedule_download_scan(self, *_):
+        self.scan_revision += 1
+        self.scan_timer.start()
+
+    def scan_download_folder(self, *, poll=False):
+        if self.scan_active or (poll and (not self.isVisible() or self.isMinimized() or not self.watched_stamps)):
+            return
+        destination = self.location.text().strip()
+        if self.library is None or not destination:
+            self.set_watched_folders(set())
+            self.watched_stamps = {}
+            return
+        folder = Path(destination).expanduser().absolute()
+        library = self.library
+        source, region, _ = self.provider()
+        revision = self.scan_revision
+        stamps = self.watched_stamps
+        self.scan_active = True
+
+        def scan():
+            before = folder_stamps(stamps)
+            if poll and before == stamps:
+                return None
+            downloaded, watch = scan_downloads(cli.DATA, folder, library, source, region)
+            after = folder_stamps(watch)
+            return downloaded, watch, {path: before.get(path, stamp) for path, stamp in after.items()}
+
+        def finished(result):
+            self.scan_active = False
+            if revision != self.scan_revision:
+                self.scan_timer.start()
+            elif result is not None:
+                self.downloaded, watch, self.watched_stamps = result
+                self.set_watched_folders(watch)
+                self.update_download_badges()
+
+        self.run(scan, finished, lambda _: finished(None))
+
+    def set_watched_folders(self, folders):
+        watched = set(self.folder_watcher.directories())
+        if removed := watched - folders:
+            self.folder_watcher.removePaths(list(removed))
+        if added := folders - watched:
+            self.folder_watcher.addPaths(list(added))
+
+    def update_download_badge(self, tile):
+        entry = tile.data(ROLE)
+        if isinstance(entry, Series):
+            count = sum((entry.id, book.id) in self.downloaded for book in entry.books)
+            label = tr("{count} of {total} books downloaded", count=count, total=len(entry.books)) if count else ""
+        else:
+            count = int((self.series.id if self.series else None, entry.id) in self.downloaded)
+            label = tr("Downloaded") if count else ""
+        tooltip = f"{entry.title} · {entry.id}"
+        tile.setData(DOWNLOADED_ROLE, count)
+        tile.setData(Qt.ItemDataRole.AccessibleDescriptionRole, label)
+        tile.setToolTip(f"{tooltip}\n{label}" if label else tooltip)
+
+    def update_download_badges(self):
+        for row in range(self.grid.count()):
+            self.update_download_badge(self.grid.item(row))
+
     def placeholder(self, is_series):
         pixmap = QPixmap(124, 168)
         pixmap.fill(QColor("#315950") if is_series else QColor("#c8d7c1"))
@@ -1056,7 +1395,7 @@ class Window(QMainWindow):
             return
         selection = {(type(item.data(ROLE)), item.data(ROLE).id) for item in self.grid.selectedItems()} if preserve else set()
         scroll = self.grid.verticalScrollBar().value() if preserve else 0
-        self.grid.set_hovered()
+        self.grid.clear_hover()
         self.grid.clear()
         self.shelf_stack.setCurrentIndex(int(self.needs_sign_in))
         self.back.setVisible(self.series is not None)
@@ -1070,9 +1409,9 @@ class Window(QMainWindow):
             caption = tr("{count} purchased books", count=len(entry.books)) if series else ""
             label = f"{entry.title}\n{caption}" if caption else entry.title
             tile = QListWidgetItem(placeholders[series], label)
-            tile.setData(ROLE + 1, caption)
-            tile.setToolTip(f"{entry.title} · {entry.id}")
+            tile.setData(CAPTION_ROLE, caption)
             tile.setData(ROLE, entry)
+            self.update_download_badge(tile)
             self.grid.addItem(tile)
             if (type(entry), entry.id) in selection:
                 tile.setSelected(True)
@@ -1089,7 +1428,7 @@ class Window(QMainWindow):
         if not image.loadFromData(payload):
             return
         item.setIcon(QIcon(image))
-        item.setData(ROLE + 2, True)
+        item.setData(COVER_LOADED_ROLE, True)
 
     def queue_covers(self, *_):
         if not hasattr(self, "grid"):
@@ -1098,7 +1437,7 @@ class Window(QMainWindow):
         source, region, _ = self.provider()
         for index in range(self.grid.count()):
             item = self.grid.item(index)
-            if item.data(ROLE + 2) or not self.grid.visualItemRect(item).intersects(viewport):
+            if item.data(COVER_LOADED_ROLE) or not self.grid.visualItemRect(item).intersects(viewport):
                 continue
             entry = self.cover_entry(item.data(ROLE))
             if payload := cached_cover(cli.DATA, source, region, entry):
@@ -1128,11 +1467,32 @@ class Window(QMainWindow):
     def open_item(self, item):
         entry = item.data(ROLE)
         if isinstance(entry, Series):
-            self.series = entry
-            self.search.clear()
-            self.render_library()
+            self.open_series(entry)
         else:
             self.download((entry,))
+
+    def open_series(self, entry):
+        self.series = entry
+        self.search.clear()
+        self.render_library()
+
+    def open_card_menu(self, item, position):
+        entry = item.data(ROLE)
+        source, region, _ = self.provider()
+        color = self.palette().color(QPalette.ColorRole.ButtonText)
+        menu = QMenu(self.grid)
+        menu.setObjectName("cardMenu")
+        actions = []
+        if isinstance(entry, Series):
+            actions.append(("Open", "open-folder", lambda: self.open_series(entry)))
+        actions.extend((
+            ("Download", "download", lambda: self.download((entry,))),
+            ("Store page", "external", lambda: open_link(store_page(entry, source, region))),
+        ))
+        for label, glyph, callback in actions:
+            menu.addAction(action_icon(glyph, color), tr(label), callback)
+        menu.exec(position)
+        menu.deleteLater()
 
     def leave_series(self):
         self.series = None
@@ -1150,6 +1510,16 @@ class Window(QMainWindow):
             task.request for task in self.downloads if task.state in {"queued", "running", "cancelling"}
         }
 
+    def make_requests(self, entries, source, region, library, series=None):
+        folder = Path(self.location.text().strip()).expanduser().absolute()
+        dedrm = source != "amazon" or self.settings.value("dedrm", True, type=bool)
+        requested = self.format.currentData() if dedrm else "auto"
+        calibre_path = self.settings.value("calibre_path", "")
+        return [DownloadRequest(source, region, entry, folder, requested,
+                                (series or series_for_book(library, entry.id)) if isinstance(entry, Book) else None,
+                                calibre_path, dedrm)
+                for entry in entries]
+
     def download(self, entries=None):
         bulk = entries is None
         if bulk:
@@ -1162,22 +1532,22 @@ class Window(QMainWindow):
         if not self.location.text().strip():
             self.show_download_notice("Choose a destination folder first.")
             return
-        folder = Path(self.location.text()).expanduser().absolute()
         source, region, _ = self.provider()
-        requested = self.format.currentData()
-        unfinished = self.unfinished_downloads()
-        requests = tuple(dict.fromkeys(
-            DownloadRequest(source, region, entry, folder, requested) for entry in entries
-        ))
-        requests = tuple(item for item in requests if item not in unfinished)
+        self.queue_requests(self.make_requests(entries, source, region, self.library, self.series),
+                            bulk=bulk, card_feedback=not bulk)
+
+    def queue_requests(self, requests, *, bulk=False, card_feedback=False):
+        unfinished = {request.key for request in self.unfinished_downloads()}
+        requests = {request.key: request for request in requests if request.key not in unfinished}
         if not requests:
-            return
-        self.settings.setValue("destination", str(folder))
-        self.download_notice.hide()
+            return 0
+        requests = tuple(requests.values())
+        self.settings.setValue("destination", str(requests[0].folder))
+        self.clear_download_notice()
         self.enqueueing.update(requests)
         if bulk:
             self.bulk_starting = True
-        else:
+        if card_feedback:
             self.pending_cards.update(requests)
         self.update_starting()
 
@@ -1191,20 +1561,28 @@ class Window(QMainWindow):
             if bulk:
                 self.bulk_starting = False
             self.update_starting()
+            self.set_downloads_visible(True)
             self.start_downloads()
             QTimer.singleShot(0, lambda: self.download_scroll.ensureWidgetVisible(self.download_rows[task]))
 
         # Give the initiating control one paint before the queue takes ownership.
-        QTimer.singleShot(90, enqueue)
+        QTimer.singleShot(90 if bulk or card_feedback else 0, enqueue)
+        return len(requests)
+
+    def clear_download_notice(self):
+        self.download_notice.hide()
+        self.shelf_download_notice.hide()
 
     def show_download_notice(self, message):
-        self.download_notice.setText(tr(message))
-        self.download_notice.show()
+        notice = self.download_notice if self.downloads_visible else self.shelf_download_notice
+        notice.setText(tr(message))
+        notice.show()
 
     def update_starting(self):
         source, region, _ = self.provider()
         self.grid.pending = {request.entry.id for request in self.pending_cards
                              if (request.source, request.region) == (source, region)}
+        self.grid.refresh_pointer()
         self.download_button.setEnabled(not self.bulk_starting)
         self.download_button.setText(tr("Starting…") if self.bulk_starting else tr("Download selected"))
         if self.bulk_starting or self.pending_cards:
@@ -1260,6 +1638,7 @@ class Window(QMainWindow):
         def finish(state, detail=""):
             task.state, task.detail = state, detail
             self.download_rows[task].update_task()
+            self.schedule_download_scan()
             self.start_downloads()
 
         self.run(partial(run_download, task.request, task.cancelled, self.operation_lock),
@@ -1271,10 +1650,10 @@ class Window(QMainWindow):
         if task.state == "complete":
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(task.request.directory)))
         elif task.state == "failed":
-            if task.request in self.unfinished_downloads():
+            if any(item.key == task.request.key for item in self.unfinished_downloads()):
                 self.show_download_notice("This download is already in the queue.")
                 return
-            self.download_notice.hide()
+            self.clear_download_notice()
             task.state = "queued"
             task.percent, task.speed, task.detail = None, "", ""
             self.downloads.remove(task)
@@ -1392,30 +1771,35 @@ class Window(QMainWindow):
         ):
             palette.setColor(role, QColor(color))
         QApplication.setPalette(palette)
-        icons = {name: action_icon(name, "#ffffff" if name == "download" else ink) for name in GLYPHS if name != "chevron"}
+        icons = {name: action_icon(name, ink) for name in GLYPHS if name != "chevron"}
         for widget in self.findChildren(QPushButton):
             if name := widget.property("glyph"):
-                widget.setIcon(icons[name])
+                widget.setIcon(action_icon(name, "#ffffff") if widget.property("primary") else icons[name])
         QApplication.instance().setStyleSheet(f"""
             QWidget {{ background: {background}; color: {ink}; font-size: 14px; }}
             QLabel#brand {{ font-size: 21px; font-weight: 700; }}
+            QLabel#versionTag {{
+                background: {active}; color: {quiet}; border: 1px solid {border}; border-radius: 9px;
+                font-size: 11px; font-weight: 650; padding: 2px 7px;
+            }}
             QLabel#pageTitle {{ font-size: 35px; font-weight: 650; }}
             QLabel#muted {{ color: {quiet}; }}
             QLabel#downloadHeading {{ font-size: 23px; font-weight: 680; }}
             QLabel#downloadTitle {{ font-size: 13px; font-weight: 650; }}
             QLabel#downloadDetail {{ color: {quiet}; font-size: 12px; }}
+            QLabel#originalFormat {{ color: {quiet}; padding: 0 8px; }}
             QWidget#downloadPanel {{ border-left: 1px solid {border}; }}
             QScrollArea#downloadScroll {{ border: none; }}
-            QPushButton, QLineEdit, QComboBox {{
+            QPushButton, QLineEdit, QComboBox, QPlainTextEdit {{
                 border: 1px solid {border}; border-radius: 9px; padding: 7px 12px; background: {panel};
             }}
-            QPushButton:hover, QPushButton:focus, QLineEdit:focus, QComboBox:focus {{ border-color: #588a75; }}
+            QPushButton:hover, QPushButton:focus, QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus {{ border-color: #588a75; }}
             QPushButton[tab="true"], QPushButton[iconOnly="true"] {{
                 border: 1px solid transparent; background: transparent; padding: 6px 10px;
             }}
             QPushButton[iconOnly="true"] {{ padding: 0; }}
             QPushButton[tab="true"]:hover, QPushButton[iconOnly="true"]:hover {{ background: {hover}; }}
-            QPushButton[tab="true"]:checked {{ background: {active}; font-weight: 650; }}
+            QPushButton[tab="true"]:checked, QPushButton[iconOnly="true"]:checked {{ background: {active}; font-weight: 650; }}
             QPushButton[tab="true"]:focus, QPushButton[iconOnly="true"]:focus {{ border-color: #588a75; }}
             QLineEdit, QComboBox {{ min-height: 19px; }}
             QComboBox {{ padding-right: 31px; combobox-popup: 0; }}
@@ -1429,6 +1813,9 @@ class Window(QMainWindow):
             QMenu {{ background: {panel}; border: 1px solid {border}; border-radius: 8px; padding: 5px; }}
             QMenu::item {{ padding: 7px 18px 7px 26px; border-radius: 5px; }}
             QMenu::item:selected {{ background: {active}; }}
+            QMenu#cardMenu {{ border-radius: 12px; padding: 6px; }}
+            QMenu#cardMenu::item {{ padding: 8px 18px 8px 38px; border-radius: 7px; }}
+            QMenu#cardMenu::icon {{ padding-left: 9px; }}
             QScrollBar:vertical {{ border: none; background: transparent; width: 8px; margin: 3px 0; }}
             QScrollBar::handle:vertical {{ background: {border}; border-radius: 4px; min-height: 30px; }}
             QScrollBar::handle:vertical:hover {{ background: #588a75; }}
@@ -1460,6 +1847,7 @@ class Window(QMainWindow):
 
     def closeEvent(self, event):
         if self.enqueueing or any(task.state in {"queued", "running", "cancelling"} for task in self.downloads):
+            self.set_downloads_visible(True)
             self.show_download_notice("Wait for the current download to finish before closing.")
             event.ignore()
         elif self.jobs:
